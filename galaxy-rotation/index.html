@@ -260,12 +260,9 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-(function () {
-  if (!window.THREE) {
-    document.getElementById('stage').innerHTML = '<p class="err">The 3D library did not load. Check your connection and reload the page.</p>';
-    return;
-  }
-
+// ---------- Galaxy mass model, shared by the page (chart) and the physics worker ----------
+// The worker is built from this function's source, so it must not use anything from outside it.
+function galaxyModel() {
   // ---------- Units: kpc, km/s, solar masses. Time unit = 1 kpc / (km/s) = 0.9778 Gyr ----------
   const G = 4.30091e-6;
   const MB = 1.0e10, AB = 0.6;     // Hernquist bulge (smooth and fixed)
@@ -281,7 +278,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   function gHalo(r) { return G * massHalo(r) / (r * r); }
   function mondNu(gN) { return 0.5 + Math.sqrt(0.25 + A0 / gN); } // "simple" interpolating function
 
-  // Azimuthally averaged inward pull of the disk stars at the start, filled in by buildDiskProfile().
+  // Azimuthally averaged inward pull of the disk stars at the start, measured by the worker and set with setDiskProfile().
   const PROF_DR = 0.05, PROF_N = 800;
   const diskProf = new Float64Array(PROF_N + 1);
   function gDisk(r) {
@@ -313,11 +310,39 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     }
     escTable = { rs, phi, lr0, lr1, n };
   }
+  function setDiskProfile(p) { diskProf.set(p); buildEscTable(); }
   function vEscVis(r) {
     const t = escTable, f = (Math.log(r) - t.lr0) / (t.lr1 - t.lr0) * (t.n - 1);
     const i = Math.max(0, Math.min(t.n - 2, Math.floor(f))), u = f - i;
     return Math.sqrt(-2 * (t.phi[i] * (1 - u) + t.phi[i + 1] * u));
   }
+
+  // Average surface density of the disk stars (exponential, cut at 0.7 and 34 kpc), for the Toomre stability condition.
+  const SIGMA0 = (function () {
+    const a = 0.7 / HD, b = 34 / HD;
+    return MD / (2 * Math.PI * HD * HD * ((1 + a) * Math.exp(-a) - (1 + b) * Math.exp(-b)));
+  })();
+  // Starting motion of a disk star at radius r: mean rotation plus random scatter, set so the disk has Toomre Q_TOOMRE
+  // and a slower mean rotation where the scatter is large (asymmetric drift). Written to out.vphi, out.sigR, out.sigPhi.
+  function diskIC(r, model, out) {
+    const vc = vcirc(r, model), om2 = vc * vc / (r * r), dr = 0.02;
+    const om2a = gRadial(r + dr, model) / (r + dr), om2b = gRadial(r - dr, model) / (r - dr);
+    const kappa = Math.sqrt(Math.max(r * (om2a - om2b) / (2 * dr) + 4 * om2, 1e-6));
+    const sig = Math.min(Q_TOOMRE * 3.36 * G * SIGMA0 * Math.exp(-r / HD) / kappa, 0.45 * vc);
+    const v2 = vc * vc + sig * sig * (1 - kappa * kappa / (4 * om2) - 2 * r / HD);
+    out.vphi = Math.sqrt(Math.max(v2, 0.3 * vc * vc)); out.sigR = sig; out.sigPhi = sig * kappa / (2 * Math.sqrt(om2));
+  }
+
+  return { G, MB, AB, MD, HD, RC, GYR_PER_UNIT, PROF_DR, PROF_N, gBulge, massHalo, gHalo, mondNu, gDisk, gRadial, vcirc,
+    vEscVis, setDiskProfile, diskIC };
+}
+
+// ---------- Physics worker: moves the stars of all three galaxies, off the page's main thread ----------
+// Built from this function's source together with galaxyModel(), so it must not use anything else from outside.
+// The page sends the starting star field once, then a restart or a time step at a time; each reply carries star positions.
+function physicsWorker() {
+  const { G, MD, PROF_DR, PROF_N, gBulge, gHalo, mondNu, gDisk, vcirc, setDiskProfile, diskIC } = galaxyModel();
+  let N, NT, T, SAMPLE, base; // sent by the page
 
   // ---------- Disk self-gravity: particle-mesh solver ----------
   // Every disk star carries an equal share of the disk's mass, and they all pull on each other. Each update spreads
@@ -438,6 +463,134 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   }
   function meshState() { return { fx: new Float64Array(PM_M * PM_M), fy: new Float64Array(PM_M * PM_M), gridMass: 0 }; }
 
+  // Each disk star's share of the disk mass, and the disk's actual azimuthally averaged pull at the start.
+  // Starting speeds, the chart and the escape speed all use that measured pull, so they match the simulation.
+  function buildDiskProfile() {
+    const prof = new Float64Array(PROF_N + 1);
+    const probe = Object.assign(meshState(), { x: base.x, y: base.y, vx: new Float64Array(NT), vy: new Float64Array(NT), alive: new Uint8Array(NT).fill(1) });
+    pmSolve([probe], 0);
+    const NA = 128;
+    for (let j = 1; j <= PROF_N; j++) {
+      const r = j * PROF_DR; let sum = 0;
+      for (let a = 0; a < NA; a++) {
+        const c = Math.cos(2 * Math.PI * a / NA), s = Math.sin(2 * Math.PI * a / NA);
+        diskAccel(probe, r * c, r * s); sum -= dax * c + day * s;
+      }
+      prof[j] = sum / NA;
+    }
+    return prof;
+  }
+
+  const DT_MAX = 4e-4;
+  let selfGravity = true, simT = 0, sampleAcc = 0, meshAcc = 0, meshTurn = 0, samples = [];
+  let GN, GH, GM, GALAXIES;
+  function makeGalaxy() {
+    return Object.assign(meshState(), {
+      model: 'newton', x: new Float64Array(NT), y: new Float64Array(NT), vx: new Float64Array(NT), vy: new Float64Array(NT),
+      ax: new Float64Array(NT), ay: new Float64Array(NT), alive: new Uint8Array(NT)
+    });
+  }
+
+  const ic = { vphi: 0, sigR: 0, sigPhi: 0 };
+  function initGalaxy(g, gravityModel, speedModel) {
+    g.model = gravityModel;
+    for (let i = 0; i < NT; i++) {
+      const x = base.x[i], y = base.y[i], r = Math.hypot(x, y);
+      let v, vr;
+      if (base.disk[i] && selfGravity) { diskIC(r, speedModel, ic); v = ic.vphi + ic.sigPhi * base.nt[i]; vr = ic.sigR * base.nr[i]; }
+      else { v = vcirc(r, speedModel); vr = v * 0.025 * base.nr[i]; v *= 1 + 0.03 * base.nt[i]; } // nearly circular orbits
+      g.x[i] = x; g.y[i] = y;
+      g.vx[i] = -v * y / r + vr * x / r; g.vy[i] = v * x / r + vr * y / r;
+      g.alive[i] = 1;
+    }
+  }
+
+  // Total pull on star i: the smooth bulge (and halo), plus the disk stars read off the grid (or the fixed starting disk).
+  // MOND boosts the combined Newtonian pull from all visible matter.
+  function accel(g, i) {
+    const x = g.x[i], y = g.y[i], r = Math.max(Math.sqrt(x * x + y * y), 0.05);
+    let k = gBulge(r) / r;
+    if (g.model === 'halo') k += gHalo(r) / r;
+    if (selfGravity) diskAccel(g, x, y);
+    else { k += gDisk(r) / r; dax = 0; day = 0; }
+    let ax = dax - k * x, ay = day - k * y;
+    if (g.model === 'mond') { const f = mondNu(Math.max(Math.sqrt(ax * ax + ay * ay), 1e-9)); ax *= f; ay *= f; }
+    g.ax[i] = ax; g.ay[i] = ay;
+  }
+  function allAccel(g) { for (let i = 0; i < NT; i++) if (g.alive[i]) accel(g, i); }
+
+  function step(g, dt) { // kick-drift-kick leapfrog
+    const h = dt * 0.5, x = g.x, y = g.y, vx = g.vx, vy = g.vy, ax = g.ax, ay = g.ay, alive = g.alive;
+    for (let i = 0; i < NT; i++) {
+      if (!alive[i]) continue;
+      vx[i] += ax[i] * h; vy[i] += ay[i] * h;
+      x[i] += vx[i] * dt; y[i] += vy[i] * dt;
+      if (x[i] * x[i] + y[i] * y[i] > 360000) { alive[i] = 0; continue; } // past 600 kpc
+      accel(g, i);
+      vx[i] += ax[i] * h; vy[i] += ay[i] * h;
+    }
+  }
+
+  function advance(simDt) {
+    const n = Math.ceil(simDt / DT_MAX), h = simDt / n;
+    for (let s = 0; s < n; s++) {
+      for (const g of GALAXIES) step(g, h);
+      simT += h; sampleAcc += h; meshAcc += h;
+      if (sampleAcc >= SAMPLE) { // trail points for the tracer stars
+        sampleAcc -= SAMPLE;
+        for (const g of GALAXIES) for (let k = 0; k < T; k++) samples.push(g.x[N + k], g.y[N + k]);
+      }
+      // The disk's own pull changes slowly, so each galaxy's grid is refreshed every PM.DT, in two staggered batches.
+      if (selfGravity && meshAcc >= PM.DT / 2) { meshAcc -= PM.DT / 2; pmSolve(meshTurn ? [GM] : [GN, GH], PM.DT / 2); meshTurn ^= 1; }
+    }
+  }
+
+  function restart(mode) {
+    simT = 0; sampleAcc = 0; samples = [];
+    const observed = mode === 'remove';
+    initGalaxy(GN, 'newton', observed ? 'halo' : 'newton');
+    initGalaxy(GH, 'halo', 'halo');
+    initGalaxy(GM, 'mond', observed ? 'halo' : 'mond');
+    meshAcc = 0; meshTurn = 0;
+    if (selfGravity) { pmSolve([GN, GH], PM.DT / 4); pmSolve([GM], PM.DT / 2); } // first refreshes come at PM.DT / 2 and PM.DT
+    GALAXIES.forEach(allAccel);
+  }
+
+  function reply(gen, reset) {
+    const xy = new Float32Array(GALAXIES.length * NT * 2);
+    GALAXIES.forEach((g, j) => { for (let i = 0, o = j * NT * 2; i < NT; i++) { xy[o + 2 * i] = g.x[i]; xy[o + 2 * i + 1] = g.y[i]; } });
+    let out = 0;
+    for (let i = 0; i < N; i++) if (!GN.alive[i] || GN.x[i] * GN.x[i] + GN.y[i] * GN.y[i] > 3600) out++; // beyond 60 kpc
+    const trails = new Float32Array(samples); samples = [];
+    postMessage({ type: 'state', gen, reset, simT, outFrac: out / N, xy, trails }, [xy.buffer, trails.buffer]);
+  }
+
+  onmessage = e => {
+    const m = e.data;
+    if (m.type === 'init') {
+      ({ N, NT, T, SAMPLE, base } = m);
+      let nDisk = 0;
+      for (let i = 0; i < N; i++) nDisk += base.disk[i];
+      starMass = MD / nDisk;
+      GN = makeGalaxy(); GH = makeGalaxy(); GM = makeGalaxy(); GALAXIES = [GN, GH, GM];
+      const prof = buildDiskProfile();
+      setDiskProfile(prof);
+      postMessage({ type: 'profile', prof });
+    } else if (m.type === 'restart') {
+      selfGravity = m.selfGravity; restart(m.mode); reply(m.gen, true);
+    } else if (m.type === 'advance') {
+      advance(m.simDt); reply(m.gen, false);
+    }
+  };
+}
+
+(function () {
+  if (!window.THREE) {
+    document.getElementById('stage').innerHTML = '<p class="err">The 3D library did not load. Check your connection and reload the page.</p>';
+    return;
+  }
+  const { G, AB, HD, RC, GYR_PER_UNIT, massHalo, vcirc, vEscVis, setDiskProfile } = galaxyModel();
+
   // ---------- Seeded random ----------
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   const rnd = mulberry32(20261001);
@@ -481,44 +634,6 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     base.col.set([1, 1, 1], i * 3); base.size[i] = 6.5;
   }
 
-
-  // Each disk star's share of the disk mass, then the disk's actual azimuthally averaged pull at the start.
-  // Starting speeds, the chart and the escape speed all use that measured pull, so they match the simulation.
-  let nDisk = 0;
-  for (let i = 0; i < N; i++) nDisk += base.disk[i];
-  starMass = MD / nDisk;
-  (function buildDiskProfile() {
-    const probe = Object.assign(meshState(), { x: base.x, y: base.y, vx: new Float64Array(NT), vy: new Float64Array(NT), alive: new Uint8Array(NT).fill(1) });
-    pmSolve([probe], 0);
-    const NA = 128;
-    for (let j = 1; j <= PROF_N; j++) {
-      const r = j * PROF_DR; let sum = 0;
-      for (let a = 0; a < NA; a++) {
-        const c = Math.cos(2 * Math.PI * a / NA), s = Math.sin(2 * Math.PI * a / NA);
-        diskAccel(probe, r * c, r * s); sum -= dax * c + day * s;
-      }
-      diskProf[j] = sum / NA;
-    }
-  })();
-  buildEscTable();
-
-  // Average surface density of the disk stars (exponential, cut at 0.7 and 34 kpc), for the Toomre stability condition.
-  const SIGMA0 = (function () {
-    const a = 0.7 / HD, b = 34 / HD;
-    return MD / (2 * Math.PI * HD * HD * ((1 + a) * Math.exp(-a) - (1 + b) * Math.exp(-b)));
-  })();
-  // Starting motion of a disk star at radius r: mean rotation plus random scatter, set so the disk has Toomre Q_TOOMRE
-  // and a slower mean rotation where the scatter is large (asymmetric drift). Left in icVphi, icSigR, icSigPhi.
-  let icVphi = 0, icSigR = 0, icSigPhi = 0;
-  function diskIC(r, model) {
-    const vc = vcirc(r, model), om2 = vc * vc / (r * r), dr = 0.02;
-    const om2a = gRadial(r + dr, model) / (r + dr), om2b = gRadial(r - dr, model) / (r - dr);
-    const kappa = Math.sqrt(Math.max(r * (om2a - om2b) / (2 * dr) + 4 * om2, 1e-6));
-    const sig = Math.min(Q_TOOMRE * 3.36 * G * SIGMA0 * Math.exp(-r / HD) / kappa, 0.45 * vc);
-    const v2 = vc * vc + sig * sig * (1 - kappa * kappa / (4 * om2) - 2 * r / HD);
-    icVphi = Math.sqrt(Math.max(v2, 0.3 * vc * vc)); icSigR = sig; icSigPhi = sig * kappa / (2 * Math.sqrt(om2));
-  }
-
   // ---------- Three.js setup ----------
   const css = getComputedStyle(document.documentElement);
   const tok = name => css.getPropertyValue(name).trim();
@@ -559,12 +674,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   const TRAIL_K = 70, SAMPLE = 0.0015; // 70 samples x ~1.47 Myr = ~100 Myr of trail
   function makeGalaxy(trailHex) {
     const scene = new THREE.Scene();
-    const g = Object.assign(meshState(), {
-      scene, model: 'newton',
-      x: new Float64Array(NT), y: new Float64Array(NT), vx: new Float64Array(NT), vy: new Float64Array(NT),
-      ax: new Float64Array(NT), ay: new Float64Array(NT), alive: new Uint8Array(NT),
-      pos: new Float32Array(NT * 3), trails: []
-    });
+    const g = { scene, pos: new Float32Array(NT * 3), trails: [] };
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(g.pos, 3));
     geo.setAttribute('acolor', new THREE.BufferAttribute(base.col, 3));
@@ -619,18 +729,50 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   })();
   GH.scene.add(haloGroup);
 
-  // ---------- Simulation ----------
-  let mode = 'compare', running = true, simT = 0, sampleAcc = 0, meshAcc = 0, meshTurn = 0, speed = 1;
+  // ---------- Simulation: runs in a Web Worker, so this thread only draws ----------
+  let mode = 'compare', running = true, simT = 0, speed = 1, outFrac = 0, profileReady = false;
   let selfGravity = true; // false: every star moves in the smooth, fixed pull of the starting disk instead
-  const RATE = 0.1;     // sim time units per real second at 1x (~98 Myr per second)
-  const DT_MAX = 4e-4;
-
-  function writePositions(g) {
-    for (let i = 0; i < NT; i++) {
-      g.pos[i * 3] = g.x[i]; g.pos[i * 3 + 1] = base.z[i]; g.pos[i * 3 + 2] = -g.y[i];
+  const RATE = 0.1;       // sim time units per real second at 1x (~98 Myr per second)
+  const worker = new Worker(URL.createObjectURL(new Blob(
+    [galaxyModel.toString(), '\n', physicsWorker.toString(), '\nphysicsWorker();\n'], { type: 'text/javascript' })));
+  // One request at a time. gen counts restarts, so replies to steps from before a restart are dropped.
+  // owed is sim time not yet asked for; it is capped, so if the worker falls behind the galaxies slow down instead of jumping.
+  let gen = 0, waiting = false, owed = 0;
+  worker.onerror = e => console.error('Physics worker:', e.message);
+  worker.onmessage = e => {
+    const m = e.data;
+    if (m.type === 'profile') { setDiskProfile(m.prof); profileReady = true; drawChart(); return; }
+    if (m.gen !== gen) return;
+    waiting = false; simT = m.simT; outFrac = m.outFrac;
+    GALAXIES.forEach((g, j) => {
+      const o = j * NT * 2;
+      for (let i = 0; i < NT; i++) {
+        g.pos[i * 3] = m.xy[o + 2 * i]; g.pos[i * 3 + 1] = base.z[i]; g.pos[i * 3 + 2] = -m.xy[o + 2 * i + 1];
+      }
+      g.geo.attributes.position.needsUpdate = true;
+      if (m.reset) {
+        for (let k = 0; k < T; k++) {
+          const t = g.trails[k], x = m.xy[o + 2 * (N + k)], y = m.xy[o + 2 * (N + k) + 1];
+          for (let jj = 0; jj < TRAIL_K; jj++) { t.buf[jj * 3] = x; t.buf[jj * 3 + 1] = 0; t.buf[jj * 3 + 2] = -y; }
+          t.head = 0;
+        }
+      }
+    });
+    const per = GALAXIES.length * T * 2; // trail samples: tracer x, y for each galaxy
+    for (let s = 0; s + per <= m.trails.length; s += per) {
+      GALAXIES.forEach((g, j) => {
+        for (let k = 0; k < T; k++) {
+          const t = g.trails[k], o = t.head * 3, src = s + (j * T + k) * 2;
+          t.buf[o] = m.trails[src]; t.buf[o + 1] = 0; t.buf[o + 2] = -m.trails[src + 1];
+          t.head = (t.head + 1) % TRAIL_K;
+        }
+      });
     }
-    g.geo.attributes.position.needsUpdate = true;
-  }
+    for (const g of GALAXIES) for (let k = 0; k < T; k++) refreshTrail(g, k);
+    updateHud();
+  };
+  worker.postMessage({ type: 'init', N, NT, T, SAMPLE, base: { x: base.x, y: base.y, nt: base.nt, nr: base.nr, disk: base.disk } });
+
   function refreshTrail(g, k) {
     const t = g.trails[k];
     for (let j = 0; j < TRAIL_K; j++) {
@@ -638,73 +780,6 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
       t.ordered[j * 3] = t.buf[src]; t.ordered[j * 3 + 1] = t.buf[src + 1]; t.ordered[j * 3 + 2] = t.buf[src + 2];
     }
     t.geo.attributes.position.needsUpdate = true;
-  }
-  function pushTrails(g) {
-    for (let k = 0; k < T; k++) {
-      const i = N + k, t = g.trails[k], o = t.head * 3;
-      t.buf[o] = g.x[i]; t.buf[o + 1] = 0; t.buf[o + 2] = -g.y[i];
-      t.head = (t.head + 1) % TRAIL_K;
-    }
-  }
-
-  function initGalaxy(g, gravityModel, speedModel) {
-    g.model = gravityModel;
-    for (let i = 0; i < NT; i++) {
-      const x = base.x[i], y = base.y[i], r = Math.hypot(x, y);
-      let v, vr;
-      if (base.disk[i] && selfGravity) { diskIC(r, speedModel); v = icVphi + icSigPhi * base.nt[i]; vr = icSigR * base.nr[i]; }
-      else { v = vcirc(r, speedModel); vr = v * 0.025 * base.nr[i]; v *= 1 + 0.03 * base.nt[i]; } // nearly circular orbits
-      g.x[i] = x; g.y[i] = y;
-      g.vx[i] = -v * y / r + vr * x / r; g.vy[i] = v * x / r + vr * y / r;
-      g.alive[i] = 1;
-    }
-    for (let k = 0; k < T; k++) {
-      const i = N + k, t = g.trails[k];
-      for (let j = 0; j < TRAIL_K; j++) { t.buf[j * 3] = g.x[i]; t.buf[j * 3 + 1] = 0; t.buf[j * 3 + 2] = -g.y[i]; }
-      t.head = 0; refreshTrail(g, k);
-    }
-    writePositions(g);
-  }
-
-  // Total pull on star i: the smooth bulge (and halo), plus the disk stars read off the grid (or the fixed starting disk).
-  // MOND boosts the combined Newtonian pull from all visible matter.
-  function accel(g, i) {
-    const x = g.x[i], y = g.y[i], r = Math.max(Math.sqrt(x * x + y * y), 0.05);
-    let k = gBulge(r) / r;
-    if (g.model === 'halo') k += gHalo(r) / r;
-    if (selfGravity) diskAccel(g, x, y);
-    else { k += gDisk(r) / r; dax = 0; day = 0; }
-    let ax = dax - k * x, ay = day - k * y;
-    if (g.model === 'mond') { const f = mondNu(Math.max(Math.sqrt(ax * ax + ay * ay), 1e-9)); ax *= f; ay *= f; }
-    g.ax[i] = ax; g.ay[i] = ay;
-  }
-  function allAccel(g) { for (let i = 0; i < NT; i++) if (g.alive[i]) accel(g, i); }
-
-  function step(g, dt) { // kick-drift-kick leapfrog
-    const h = dt * 0.5, x = g.x, y = g.y, vx = g.vx, vy = g.vy, ax = g.ax, ay = g.ay, alive = g.alive;
-    for (let i = 0; i < NT; i++) {
-      if (!alive[i]) continue;
-      vx[i] += ax[i] * h; vy[i] += ay[i] * h;
-      x[i] += vx[i] * dt; y[i] += vy[i] * dt;
-      if (x[i] * x[i] + y[i] * y[i] > 360000) { alive[i] = 0; continue; } // past 600 kpc
-      accel(g, i);
-      vx[i] += ax[i] * h; vy[i] += ay[i] * h;
-    }
-  }
-
-  function advance(simDt) {
-    const n = Math.ceil(simDt / DT_MAX), h = simDt / n;
-    for (let s = 0; s < n; s++) {
-      for (const g of GALAXIES) step(g, h);
-      simT += h; sampleAcc += h; meshAcc += h;
-      if (sampleAcc >= SAMPLE) { sampleAcc -= SAMPLE; GALAXIES.forEach(pushTrails); }
-      // The disk's own pull changes slowly, so each galaxy's grid is refreshed every PM.DT, in two staggered batches.
-      if (selfGravity && meshAcc >= PM.DT / 2) { meshAcc -= PM.DT / 2; pmSolve(meshTurn ? [GM] : [GN, GH], PM.DT / 2); meshTurn ^= 1; }
-    }
-    for (const g of GALAXIES) {
-      writePositions(g);
-      for (let k = 0; k < T; k++) refreshTrail(g, k);
-    }
   }
 
   // ---------- UI ----------
@@ -725,24 +800,12 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     drawChart();
   }
   function restart() {
-    simT = 0; sampleAcc = 0;
-    const observed = mode === 'remove';
-    initGalaxy(GN, 'newton', observed ? 'halo' : 'newton');
-    initGalaxy(GH, 'halo', 'halo');
-    initGalaxy(GM, 'mond', observed ? 'halo' : 'mond');
-    meshAcc = 0; meshTurn = 0;
-    if (selfGravity) { pmSolve([GN, GH], PM.DT / 4); pmSolve([GM], PM.DT / 2); } // first refreshes come at PM.DT / 2 and PM.DT
-    GALAXIES.forEach(allAccel);
-    updateHud();
+    gen++; waiting = true; owed = 0;
+    worker.postMessage({ type: 'restart', gen, mode, selfGravity });
   }
-  let hudFrame = 0;
   function updateHud() {
     el('elapsed').textContent = (simT * GYR_PER_UNIT).toFixed(2);
-    if (mode === 'remove') {
-      let out = 0;
-      for (let i = 0; i < N; i++) if (!GN.alive[i] || Math.hypot(GN.x[i], GN.y[i]) > 60) out++;
-      el('esc').textContent = 'Beyond 60 kpc: ' + (100 * out / N).toFixed(0) + '% of stars';
-    }
+    if (mode === 'remove') el('esc').textContent = 'Beyond 60 kpc: ' + (100 * outFrac).toFixed(0) + '% of stars';
   }
   function setRunning(v) { running = v; el('play').textContent = v ? 'Pause' : 'Play'; }
 
@@ -818,9 +881,9 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.05); last = now;
     if (running && galaxyVisible) {
-      advance(RATE * speed * (selfGravity ? Math.min(dt, 1 / 30) : dt)); // with self-gravity, a slow machine runs in slow motion instead of stalling
+      owed = Math.min(owed + RATE * speed * dt, RATE * speed * 0.1);
+      if (!waiting && owed > 0) { worker.postMessage({ type: 'advance', gen, simDt: owed }); owed = 0; waiting = true; }
       haloGroup.rotation.y += 0.05 * speed * dt;
-      if (++hudFrame % 6 === 0) updateHud();
     }
     if (galaxyVisible) render();
     bcTick(dt);
@@ -831,7 +894,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   const chart = el('chart'), ctx = chart.getContext('2d');
   function drawChart() {
     const dpr = devicePixelRatio || 1, W = chart.clientWidth, H = chart.clientHeight;
-    if (!W) return;
+    if (!W || !profileReady) return; // drawn once the worker has measured the disk
     chart.width = Math.round(W * dpr); chart.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
     const m = { l: 50, r: 14, t: 14, b: 42 }, XM = 30, YM = 300;
