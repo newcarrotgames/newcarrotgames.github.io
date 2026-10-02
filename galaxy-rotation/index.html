@@ -100,12 +100,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--dark); outl
 h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0; }
 .legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--dim); }
 .legend li { display: inline-flex; align-items: center; gap: 7px; }
+[hidden] { display: none !important; }
 .sw { width: 22px; height: 0; border-top: 2.5px solid; }
 .sw.vis { border-color: var(--visible); }
 .sw.dm { border-color: var(--dark); }
 .sw.mo { border-color: var(--mond); }
 .sw.dmh { border-color: var(--dark); border-top-style: dashed; border-top-width: 1.5px; }
 .sw.esc { border-color: var(--visible); border-top-style: dotted; border-top-width: 2px; }
+.sw.obs { width: 9px; height: 9px; border: 1.5px solid var(--ink); border-radius: 50%; margin-inline: 6.5px; }
 #chart { width: 100%; height: 320px; display: block; }
 
 .notes { display: grid; gap: 12px; min-width: 0; max-width: 62ch; }
@@ -147,7 +149,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">Rotation curves · Milky-Way-sized galaxy model</div>
+    <div class="eyebrow">Rotation curves · Milky Way model</div>
     <h1>Why don’t galaxies <em>fly apart?</em></h1>
     <p class="lead">All three galaxies start with the same stars in the same places. The only difference is the gravity holding them together.</p>
   </header>
@@ -186,19 +188,20 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
           <li><span class="sw dm"></span>Visible + halo</li>
           <li><span class="sw dmh"></span>Halo alone</li>
           <li><span class="sw mo"></span>MOND</li>
+          <li><span class="sw obs"></span>Measured, Milky Way</li>
           <li id="lg-esc" hidden><span class="sw esc"></span>Escape speed, Newton visible only</li>
         </ul>
       </div>
-      <canvas id="chart" role="img" aria-label="Orbital speed versus distance from the galaxy center. Visible matter with Newton's gravity peaks near 165 km/s at 6 kpc and falls to about 95 km/s at 30 kpc. Adding a dark matter halo keeps the curve roughly flat, between about 200 and 215 km/s. MOND, with no extra mass, also stays roughly flat, near 200 km/s."></canvas>
+      <canvas id="chart" role="img" aria-label="Orbital speed versus distance from the center of the Milky Way. Visible matter with Newton's gravity peaks near 185 km/s at 4.5 kpc and falls to about 90 km/s at 30 kpc. Adding the dark matter halo gives about 231 km/s at the Sun's distance, falling slowly to about 182 km/s at 30 kpc, close to the measured speeds plotted from 6 to 27 kpc. MOND, with no extra mass, peaks near 219 km/s at 7 kpc and stays between about 187 and 200 km/s farther out, 5 to 8% below the measurements."></canvas>
     </section>
     <section class="notes">
       <h2>Reading it</h2>
-      <p>The <span class="vis">amber curve</span> drops past about 6 kpc because nearly all the visible mass sits inside that radius. Farther out, a star feels roughly the pull of a single central mass, so its speed falls off like 1/√r. Planets around the Sun behave the same way.</p>
-      <p>The <span class="dm">violet curve</span> stays between about 200 and 215 km/s all the way out. With Newton’s law, that only works if the enclosed mass keeps growing with radius long after the starlight fades. That extra, unseen mass is the halo.</p>
-      <p>The <span class="mo">teal curve</span> uses only the visible mass, but changes the law. Once gravity’s pull drops below a₀ ≈ 1.2 × 10⁻¹⁰ m/s², MOND says it weakens more slowly than Newton predicts. In this galaxy that happens around 7 kpc. The halo’s height was chosen to fit. MOND’s curve wasn’t: it follows from the visible mass and a₀ alone, and lands near 200 km/s.</p>
+      <p>The <span class="vis">amber curve</span> drops past about 5 kpc because most of the visible mass sits inside that radius. Farther out, a star feels roughly the pull of a single central mass, so its speed falls off like 1/√r. Planets around the Sun behave the same way.</p>
+      <p>The white circles are measured speeds of real Milky Way stars, from the Gaia and APOGEE surveys. The <span class="dm">violet curve</span> follows them: about 231 km/s at the Sun, falling slowly to about 180 km/s at 30 kpc. With Newton’s law, that only works if the enclosed mass keeps growing well past where the starlight fades. That extra, unseen mass is the halo, about 180 billion Suns’ worth, roughly three times the visible mass. Its shape and size here are the best fit to those measurements, from Ou and colleagues (2024).</p>
+      <p>The <span class="mo">teal curve</span> uses only the visible mass, but changes the law. Once gravity’s pull drops below a₀ ≈ 1.2 × 10⁻¹⁰ m/s², MOND says it weakens more slowly than Newton predicts. In the Milky Way that happens around 8 kpc, close to the Sun. The halo was fitted to the measurements. MOND’s curve wasn’t: it follows from the visible mass and a₀ alone. It runs 5 to 8% slower than the measured speeds between 6 and 20 kpc, about 15 km/s slow at the Sun. Estimates of the Milky Way’s visible mass vary by enough that this gap doesn’t settle the question.</p>
       <p>The five white stars started in a straight line. Each trail shows how far that star moved in the last 100 million years. The second one sits about where the Sun does, 8 kpc from the center.</p>
       <p>With <b>Stars pull on each other</b> turned on, each disk also feels its own gravity, and within a few hundred million years each one forms a central bar. The Newton-only disk can’t keep its outer stars in place: the bar pushes them outward, and some escape even though they started at balanced speeds. The halo’s extra mass keeps its disk calm. That was one of the earliest arguments for dark matter (Ostriker and Peebles, 1973). The MOND disk forms a bar too, and it spreads out more than the halo galaxy does.</p>
-      <p class="fine">Simplified model. The bulge and halo are smooth, fixed mass distributions (a Hernquist bulge and a pseudo-isothermal halo). With “Stars pull on each other” on, each of the 5,000 or so disk stars carries an equal share of the disk’s 50 billion solar masses and pulls on all the others. That pull is computed in the disk’s plane on a 128 × 128 grid, using an FFT (a particle-mesh solver). The disk starts with enough random motion that it doesn’t break up into clumps (Toomre Q = 1.5). With it off, every star moves in the fixed, averaged pull of the starting disk, and the arms wind up over time. Real arms don’t wind up, because they are density waves, not fixed groups of stars. MOND uses the “simple” interpolating function, applied to the combined pull of all visible matter. A full MOND calculation solves a modified field equation instead. Real galaxies also have gas, and a halo that responds to the disk. Rotation curves are where MOND does best. One of its harder tests, a collision between galaxy clusters, is below.</p>
+      <p class="fine">Simplified model of the Milky Way. Visible matter follows de Salas and colleagues (2019): a 15.5-billion-Sun bulge (Hernquist profile), a 36.5-billion-Sun stellar disk with a 2.35 kpc scale length, and 9.5 billion Suns of atomic and molecular gas in thin exponential disks. The dark matter halo is the Einasto best fit of Ou and colleagues (2024, MNRAS 528, 693), whose circular speeds from about 120,000 stars are plotted. The bulge, gas and halo are smooth and fixed. With “Stars pull on each other” on, each of the 5,000 or so disk stars carries an equal share of the stellar disk’s mass and pulls on all the others. That pull is computed in the disk’s plane on a 128 × 128 grid, using an FFT (a particle-mesh solver). The disk starts with enough random motion that it doesn’t break up into clumps (Toomre Q = 1.5). With it off, every star moves in the fixed, averaged pull of the starting disk, and the arms wind up over time. Real arms don’t wind up, because they are density waves, not fixed groups of stars. MOND uses the “simple” interpolating function, applied to the combined pull of all visible matter. A full MOND calculation solves a modified field equation instead. In the real Milky Way the bar makes motions inside about 6 kpc non-circular, and the halo responds to the disk. The outer measurements are still debated: some Gaia studies find a steeper decline past 20 kpc, while gas tracers suggest a flatter curve. Rotation curves are where MOND does best. One of its harder tests, a collision between galaxy clusters, is below.</p>
     </section>
   </div>
 
@@ -264,18 +267,77 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
 // The worker is built from this function's source, so it must not use anything from outside it.
 function galaxyModel() {
   // ---------- Units: kpc, km/s, solar masses. Time unit = 1 kpc / (km/s) = 0.9778 Gyr ----------
+  // Milky Way visible matter from de Salas et al. (2019), the model Ou et al. (2024) used with Gaia + APOGEE circular speeds.
   const G = 4.30091e-6;
-  const MB = 1.0e10, AB = 0.6;     // Hernquist bulge (smooth and fixed)
-  const MD = 5.0e10, HD = 3.6;     // exponential disk, carried by the disk stars themselves
-  const VH = 200, RC = 4.0;        // pseudo-isothermal halo (smooth and fixed): asymptotic speed, core radius
-  const HALO_K = VH * VH * RC / G;
+  const MB = 1.55e10, AB = 0.7;    // Hernquist bulge (smooth and fixed)
+  const MD = 3.65e10, HD = 2.35;   // stellar disk, exponential, carried by the disk stars themselves
+  const GAS = [[8.2e9, 18.24], [1.3e9, 2.57]]; // atomic and molecular gas: mass, exponential scale length (thin, smooth, fixed)
+  // Einasto dark matter halo, rho(r) = M0 / (4 pi rs^3) exp(-(r/rs)^alpha): the best fit of Ou et al. (2024).
+  const HALO = { M0: 0.62e11, RS: 3.86, ALPHA: 0.91 };
   const A0 = 1.2e-10 / 3.2408e-14; // MOND a0 in (km/s)^2 / kpc  (~3703)
   const Q_TOOMRE = 1.5;            // starting disk stability: enough random motion that the disk doesn't shatter into clumps
   const GYR_PER_UNIT = 0.9778;
 
   function gBulge(r) { const s = r + AB; return G * MB / (s * s); }
-  function massHalo(r) { const h = r / RC; return HALO_K * (h - Math.atan(h)); }
+
+  // Smooth components are tabulated once on a uniform grid out to 600 kpc, so the star loop only interpolates.
+  const TAB_DR = 0.05, TAB_N = 12000;
+  function tabulate(fn) { const t = new Float64Array(TAB_N + 1); for (let j = 0; j <= TAB_N; j++) t[j] = fn(j * TAB_DR); return t; }
+  function lookup(t, r) {
+    const f = r / TAB_DR;
+    if (f >= TAB_N) return t[TAB_N];
+    const i = Math.floor(f), u = f - i;
+    return t[i] * (1 - u) + t[i + 1] * u;
+  }
+  // Halo mass inside r, from integrating the Einasto density outward.
+  const haloMassTab = (function () {
+    const t = new Float64Array(TAB_N + 1), rho = r => HALO.M0 / (4 * Math.PI * HALO.RS ** 3) * Math.exp(-((r / HALO.RS) ** HALO.ALPHA));
+    const sub = 8, h = TAB_DR / sub;
+    for (let j = 1; j <= TAB_N; j++) {
+      let m = t[j - 1];
+      for (let k = 0; k < sub; k++) { const a = (j - 1) * TAB_DR + k * h, b = a + h; m += 2 * Math.PI * h * (a * a * rho(a) + b * b * rho(b)); }
+      t[j] = m;
+    }
+    return t;
+  })();
+  function massHalo(r) { return lookup(haloMassTab, r); }
   function gHalo(r) { return G * massHalo(r) / (r * r); }
+
+  // In-plane pull of thin exponential disks (Freeman 1970): g = 4 pi G Sigma0 Rd y^2 [I0 K0 - I1 K1] / R, with y = R / (2 Rd).
+  // Bessel functions from the Abramowitz & Stegun polynomial fits. For y > 2, k0 and k1 are K0, K1 times sqrt(y) exp(y),
+  // so for large y the exponentials cancel in each product instead of overflowing.
+  function besselTerm(y) {
+    const t = y / 3.75, u = 2 / y;
+    let i0, i1, k0, k1, scaled = false; // scaled: i0, i1 are I0, I1 times sqrt(y) exp(-y)
+    if (y < 3.75) {
+      const t2 = t * t;
+      i0 = 1 + t2 * (3.5156229 + t2 * (3.0899424 + t2 * (1.2067492 + t2 * (0.2659732 + t2 * (0.0360768 + t2 * 0.0045813)))));
+      i1 = y * (0.5 + t2 * (0.87890594 + t2 * (0.51498869 + t2 * (0.15084934 + t2 * (0.02658733 + t2 * (0.00301532 + t2 * 0.00032411))))));
+    } else {
+      const v = 1 / t; scaled = true;
+      i0 = 0.39894228 + v * (0.01328592 + v * (0.00225319 + v * (-0.00157565 + v * (0.00916281 + v * (-0.02057706 + v * (0.02635537 + v * (-0.01647633 + v * 0.00392377)))))));
+      i1 = 0.39894228 + v * (-0.03988024 + v * (-0.00362018 + v * (0.00163801 + v * (-0.01031555 + v * (0.02282967 + v * (-0.02895312 + v * (0.01787654 - v * 0.00420059)))))));
+    }
+    if (y <= 2) {
+      const h2 = y * y / 4, l = Math.log(y / 2);
+      k0 = -l * i0 + (-0.57721566 + h2 * (0.42278420 + h2 * (0.23069756 + h2 * (0.03488590 + h2 * (0.00262698 + h2 * (0.00010750 + h2 * 0.0000074))))));
+      k1 = l * i1 + (1 + h2 * (0.15443144 + h2 * (-0.67278579 + h2 * (-0.18156897 + h2 * (-0.01919402 + h2 * (-0.00110404 - h2 * 0.00004686)))))) / y;
+      return i0 * k0 - i1 * k1;
+    }
+    k0 = 1.25331414 + u * (-0.07832358 + u * (0.02189568 + u * (-0.01062446 + u * (0.00587872 + u * (-0.0025154 + u * 0.00053208)))));
+    k1 = 1.25331414 + u * (0.23498619 + u * (-0.0365562 + u * (0.01504268 + u * (-0.00780353 + u * (0.00325614 - u * 0.00068245)))));
+    if (scaled) return (i0 * k0 - i1 * k1) / y;                // both carry 1/sqrt(y); exponentials cancel
+    const e = Math.exp(-y) / Math.sqrt(y);                       // 2 < y < 3.75: unscaled I, scaled K
+    return (i0 * k0 - i1 * k1) * e;
+  }
+  const gasTab = tabulate(r => {
+    if (r === 0) return 0;
+    let g = 0;
+    for (const [m, rd] of GAS) { const y = r / (2 * rd); if (y > 30) { g += G * m / (r * r); continue; } g += 4 * Math.PI * G * (m / (2 * Math.PI * rd * rd)) * rd * y * y * besselTerm(y) / r; }
+    return g;
+  });
+  const MGAS = GAS.reduce((a, c) => a + c[0], 0);
+  function gGas(r) { return r >= TAB_N * TAB_DR ? G * MGAS / (r * r) : lookup(gasTab, r); }
   function mondNu(gN) { return 0.5 + Math.sqrt(0.25 + A0 / gN); } // "simple" interpolating function
 
   // Azimuthally averaged inward pull of the disk stars at the start, measured by the worker and set with setDiskProfile().
@@ -289,7 +351,7 @@ function galaxyModel() {
   }
   // Inward pull on a circular orbit of radius r. model: 'newton' | 'halo' | 'mond'
   function gRadial(r, model) {
-    let g = gBulge(r) + gDisk(r);
+    let g = gBulge(r) + gDisk(r) + gGas(r);
     if (model === 'halo') g += gHalo(r);
     else if (model === 'mond') g *= mondNu(g);
     return g;
@@ -302,10 +364,10 @@ function galaxyModel() {
     const n = 600, r0 = 0.05, r1 = 5000, lr0 = Math.log(r0), lr1 = Math.log(r1);
     const rs = new Float64Array(n), phi = new Float64Array(n);
     for (let i = 0; i < n; i++) rs[i] = Math.exp(lr0 + (lr1 - lr0) * i / (n - 1));
-    phi[n - 1] = -G * (MB * r1 * r1 / ((r1 + AB) * (r1 + AB)) + MD) / r1;
+    phi[n - 1] = -G * (MB * r1 * r1 / ((r1 + AB) * (r1 + AB)) + MD + MGAS) / r1;
     for (let i = n - 2; i >= 0; i--) {
       const a = rs[i], b = rs[i + 1];
-      const fa = gBulge(a) + gDisk(a), fb = gBulge(b) + gDisk(b);
+      const fa = gBulge(a) + gDisk(a) + gGas(a), fb = gBulge(b) + gDisk(b) + gGas(b);
       phi[i] = phi[i + 1] - 0.5 * (fa + fb) * (b - a);
     }
     escTable = { rs, phi, lr0, lr1, n };
@@ -333,7 +395,7 @@ function galaxyModel() {
     out.vphi = Math.sqrt(Math.max(v2, 0.3 * vc * vc)); out.sigR = sig; out.sigPhi = sig * kappa / (2 * Math.sqrt(om2));
   }
 
-  return { G, MB, AB, MD, HD, RC, GYR_PER_UNIT, PROF_DR, PROF_N, gBulge, massHalo, gHalo, mondNu, gDisk, gRadial, vcirc,
+  return { G, MB, AB, MD, HD, GYR_PER_UNIT, PROF_DR, PROF_N, gBulge, massHalo, gHalo, gGas, besselTerm, mondNu, gDisk, gRadial, vcirc,
     vEscVis, setDiskProfile, diskIC };
 }
 
@@ -341,7 +403,7 @@ function galaxyModel() {
 // Built from this function's source together with galaxyModel(), so it must not use anything else from outside.
 // The page sends the starting star field once, then a restart or a time step at a time; each reply carries star positions.
 function physicsWorker() {
-  const { G, MD, PROF_DR, PROF_N, gBulge, gHalo, mondNu, gDisk, vcirc, setDiskProfile, diskIC } = galaxyModel();
+  const { G, MD, PROF_DR, PROF_N, gBulge, gHalo, gGas, mondNu, gDisk, vcirc, setDiskProfile, diskIC } = galaxyModel();
   let N, NT, T, SAMPLE, base; // sent by the page
 
   // ---------- Disk self-gravity: particle-mesh solver ----------
@@ -505,11 +567,11 @@ function physicsWorker() {
     }
   }
 
-  // Total pull on star i: the smooth bulge (and halo), plus the disk stars read off the grid (or the fixed starting disk).
+  // Total pull on star i: the smooth bulge and gas (and halo), plus the disk stars read off the grid (or the fixed starting disk).
   // MOND boosts the combined Newtonian pull from all visible matter.
   function accel(g, i) {
     const x = g.x[i], y = g.y[i], r = Math.max(Math.sqrt(x * x + y * y), 0.05);
-    let k = gBulge(r) / r;
+    let k = (gBulge(r) + gGas(r)) / r;
     if (g.model === 'halo') k += gHalo(r) / r;
     if (selfGravity) diskAccel(g, x, y);
     else { k += gDisk(r) / r; dax = 0; day = 0; }
@@ -589,7 +651,7 @@ function physicsWorker() {
     document.getElementById('stage').innerHTML = '<p class="err">The 3D library did not load. Check your connection and reload the page.</p>';
     return;
   }
-  const { G, AB, HD, RC, GYR_PER_UNIT, massHalo, vcirc, vEscVis, setDiskProfile } = galaxyModel();
+  const { G, AB, HD, GYR_PER_UNIT, massHalo, vcirc, vEscVis, setDiskProfile } = galaxyModel();
 
   // ---------- Seeded random ----------
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -705,16 +767,16 @@ function physicsWorker() {
   const GM = makeGalaxy(tok('--mond'));     // MOND
   const GALAXIES = [GN, GH, GM];
 
-  // Dark matter halo cloud (middle panel only), sampled from the pseudo-isothermal mass profile.
+  // Dark matter halo cloud (middle panel only), sampled from the Einasto mass profile out to 46 kpc.
   const haloGroup = new THREE.Group();
   (function () {
-    const n = 2600, hmax = 46 / RC, mmax = hmax - Math.atan(hmax);
+    const n = 2600, rmax = 46, mmax = massHalo(rmax);
     const p = new Float32Array(n * 3), c = new Float32Array(n * 3), s = new Float32Array(n);
     const hc = new THREE.Color(tok('--dark'));
     for (let i = 0; i < n; i++) {
-      const target = rnd() * mmax; let lo = 0, hi = hmax;
-      for (let it = 0; it < 40; it++) { const m = (lo + hi) / 2; (m - Math.atan(m) < target) ? lo = m : hi = m; }
-      const r = (lo + hi) / 2 * RC, cz = 2 * rnd() - 1, sz = Math.sqrt(1 - cz * cz), ph = rnd() * Math.PI * 2;
+      const target = rnd() * mmax; let lo = 0, hi = rmax;
+      for (let it = 0; it < 40; it++) { const m = (lo + hi) / 2; (massHalo(m) < target) ? lo = m : hi = m; }
+      const r = (lo + hi) / 2, cz = 2 * rnd() - 1, sz = Math.sqrt(1 - cz * cz), ph = rnd() * Math.PI * 2;
       p[i * 3] = r * sz * Math.cos(ph); p[i * 3 + 1] = r * cz; p[i * 3 + 2] = r * sz * Math.sin(ph);
       const b = 0.14 + 0.1 * rnd();
       c[i * 3] = hc.r * b; c[i * 3 + 1] = hc.g * b; c[i * 3 + 2] = hc.b * b; s[i] = 7 + rnd() * 7;
@@ -891,6 +953,9 @@ function physicsWorker() {
   }
 
   // ---------- Rotation curve chart ----------
+  // Milky Way circular speed from about 120,000 stars (Gaia DR3 + APOGEE DR17), Ou et al. 2024, MNRAS 528, 693, Table 1:
+  // [R kpc, v_c km/s, +sigma, -sigma]. Inside about 6 kpc the bar makes the motions non-circular, so there are no points there.
+  const MW_VC = [[6.27, 231.07, 1.28, 1], [6.78, 230.93, 0.97, 0.97], [7.28, 232.87, 1.13, 0.79], [7.86, 234.14, 0.63, 0.62], [8.19, 232.83, 0.56, 0.55], [8.71, 231.27, 0.54, 0.66], [9.23, 230.47, 0.44, 0.46], [9.72, 229.16, 0.54, 0.43], [10.24, 229.37, 0.25, 0.5], [10.74, 227.95, 0.53, 0.34], [11.23, 227.09, 0.44, 0.46], [11.73, 227.15, 0.35, 0.45], [12.23, 226.9, 0.39, 0.41], [12.73, 225.61, 0.64, 0.53], [13.22, 224.95, 0.66, 0.69], [13.72, 222.79, 0.68, 0.53], [14.22, 222.13, 1.04, 0.64], [14.73, 220.08, 0.65, 0.89], [15.24, 218.25, 1.14, 0.79], [15.72, 221.16, 1.06, 1.24], [16.24, 218.3, 2.17, 1.88], [16.77, 217.07, 1.39, 1.35], [17.21, 219.56, 1.8, 1.69], [17.77, 215.49, 1.98, 2.08], [18.23, 214.62, 2.24, 1.59], [18.73, 210.89, 1.42, 1.32], [19.22, 208.48, 2.2, 1.65], [19.71, 205.97, 1.2, 1.55], [20.22, 202.97, 1.55, 2.25], [20.72, 195.16, 2.6, 1.97], [21.22, 200.2, 2.84, 1.45], [21.72, 201.11, 2.72, 3.81], [22.27, 196.79, 4.82, 6.25], [22.71, 218.65, 14.93, 17.54], [23.4, 192.49, 4.25, 4.8], [25.02, 191.48, 6.41, 9.61], [27.31, 172.98, 15.82, 17.07]];
   const chart = el('chart'), ctx = chart.getContext('2d');
   function drawChart() {
     const dpr = devicePixelRatio || 1, W = chart.clientWidth, H = chart.clientHeight;
@@ -934,6 +999,14 @@ function physicsWorker() {
     curve(r => vcirc(r, 'mond'), cMo, 2.6);
     curve(r => vcirc(r, 'halo'), cDm, 2.6);
     ctx.restore();
+
+    // Measured Milky Way circular speeds with 1-sigma statistical errors
+    ctx.strokeStyle = cInk; ctx.lineWidth = 1.2;
+    for (const [r, v, up, dn] of MW_VC) {
+      const px = X(r);
+      ctx.beginPath(); ctx.moveTo(px, Y(v + up)); ctx.lineTo(px, Y(v - dn)); ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, Y(v), 2.6, 0, Math.PI * 2); ctx.stroke();
+    }
 
     // Tracer star markers: where each marked star starts on the chart
     const sets = mode === 'remove' ? [['halo', cDm]] : [['newton', cVis], ['mond', cMo], ['halo', cDm]];
