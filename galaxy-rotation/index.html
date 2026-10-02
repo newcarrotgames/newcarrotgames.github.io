@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Galaxy Rotation Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Figtree:wght@400;500;600&family=Fragment+Mono&display=swap">
+<style>
+/* Layout: short header, full-width three-viewport 3D stage, then the rotation-curve chart beside reading notes.
+   Single deliberate dark look (night sky). Amber = visible matter / Newton, violet = dark matter, teal = MOND, everywhere. */
+:root {
+  --void: #06070c;
+  --panel: #0c0e17;
+  --line: #24273a;
+  --ink: #e8e9f2;
+  --dim: #9297b0;
+  --visible: #ffb25e;
+  --dark: #a98dff;
+  --mond: #4fd6c4;
+  --gas: #ff6fae;
+  --f-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-data: "Fragment Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--void); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 15px; line-height: 1.55; padding-inline: 16px; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 28px 56px; display: grid; gap: 22px; }
+
+header { display: grid; gap: 8px; max-width: 70ch; }
+.eyebrow { font-family: var(--f-data); font-size: 11.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(30px, 4.4vw, 46px); line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 em { font-style: italic; color: var(--dark); }
+.lead { margin: 0; color: var(--dim); font-size: 16px; }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--panel); }
+.seg button, .btn {
+  font: 500 14px/1 var(--f-body); color: var(--dim); background: transparent; border: 0;
+  padding: 9px 14px; border-radius: 999px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--void); }
+.seg button:hover:not([aria-pressed="true"]), .btn:hover { color: var(--ink); }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--dark); outline-offset: 2px; }
+.speed, .chk { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); font-size: 14px; }
+.speed input { width: 110px; accent-color: var(--dark); }
+.speed output { font-family: var(--f-data); font-size: 12.5px; color: var(--ink); min-width: 3.2em; font-variant-numeric: tabular-nums; }
+.chk input { accent-color: var(--dark); width: 16px; height: 16px; }
+.modeText { margin: 0; max-width: 82ch; color: var(--ink); }
+.modeText b { font-weight: 600; }
+.vis { color: var(--visible); }
+.dm { color: var(--dark); }
+.mo { color: var(--mond); }
+
+.stage {
+  position: relative; width: 100%; height: clamp(380px, 58vh, 600px);
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--void);
+}
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+.divider { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); pointer-events: none; }
+.divider.d1 { left: 33.333%; }
+.divider.d2 { left: 66.667%; }
+.tag {
+  position: absolute; top: 14px; left: calc(var(--i) * 33.333% + 14px);
+  display: grid; gap: 2px; pointer-events: none; max-width: calc(33.333% - 28px);
+}
+.tag .t { font-family: var(--f-display); font-size: 20px; line-height: 1.1; }
+.tag .s { font-size: 13px; color: var(--dim); }
+.tag .stat { font-family: var(--f-data); font-size: 12.5px; color: var(--visible); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.tag.l .t { color: var(--visible); }
+.tag.c .t { color: var(--dark); }
+.tag.r .t { color: var(--mond); }
+.hud {
+  position: absolute; right: 14px; bottom: 12px; pointer-events: none;
+  font-family: var(--f-data); font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; text-align: right;
+}
+.hud b { color: var(--ink); font-weight: 400; }
+.hint { position: absolute; left: 14px; bottom: 12px; font-size: 12px; color: var(--dim); pointer-events: none; max-width: calc(33.333% - 28px); }
+
+@media (max-width: 671px) {
+  .stage { height: min(210vw, 1100px); }
+  .divider { left: 0; right: 0; width: auto; height: 1px; bottom: auto; }
+  .divider.d1 { left: 0; top: 33.333%; }
+  .divider.d2 { left: 0; top: 66.667%; }
+  .tag { left: 14px; top: calc(var(--i) * 33.333% + 10px); max-width: calc(100% - 28px); }
+  .tag .t { font-size: 18px; }
+  .hint { display: none; }
+}
+
+.lower { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.curves { display: grid; gap: 10px; min-width: 0; }
+.curves-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; }
+h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--dim); }
+.legend li { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 22px; height: 0; border-top: 2.5px solid; }
+.sw.vis { border-color: var(--visible); }
+.sw.dm { border-color: var(--dark); }
+.sw.mo { border-color: var(--mond); }
+.sw.dmh { border-color: var(--dark); border-top-style: dashed; border-top-width: 1.5px; }
+.sw.esc { border-color: var(--visible); border-top-style: dotted; border-top-width: 2px; }
+#chart { width: 100%; height: 320px; display: block; }
+
+.notes { display: grid; gap: 12px; min-width: 0; max-width: 62ch; }
+.notes p { margin: 0; }
+.notes .fine { font-size: 13px; color: var(--dim); border-top: 1px solid var(--line); padding-top: 12px; }
+.err { padding: 24px; color: var(--ink); }
+
+/* ---- Bullet Cluster section ---- */
+.bullet { display: grid; gap: 18px; border-top: 1px solid var(--line); padding-top: 34px; margin-top: 10px; }
+.bullet header { gap: 8px; }
+.bullet h2.big { font-size: clamp(28px, 3.6vw, 40px); line-height: 1.05; text-wrap: balance; }
+.gas { color: var(--gas); }
+.stage.bc-stage { height: clamp(320px, 56vw, 660px); }
+@media (max-width: 671px) { .stage.bc-stage { height: 92vw; } }
+.timeline { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.timeline label { font-size: 14px; color: var(--dim); }
+.timeline input { width: 100%; accent-color: var(--gas); }
+.timeline output { font-family: var(--f-data); font-size: 12.5px; color: var(--ink); min-width: 22ch; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .timeline { grid-template-columns: minmax(0, 1fr); } .timeline output { text-align: left; } }
+.bc-label {
+  position: absolute; pointer-events: none; transform: translate(-50%, -100%);
+  font-family: var(--f-data); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); white-space: nowrap;
+}
+.bc-stage .hint { max-width: 45%; }
+.bc-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); pointer-events: none; }
+.layers { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.layers label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); cursor: pointer; }
+.layers input { width: 16px; height: 16px; accent-color: var(--ink); margin: 0; }
+.layers input:disabled + .dot, .layers input:disabled ~ span { opacity: 0.4; }
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.dot.gal { background: var(--visible); }
+.dot.gas { background: var(--gas); }
+.dot.dm { background: var(--dark); }
+.dot.mass { border-radius: 0; height: 0; width: 18px; border-top: 2px solid var(--ink); }
+.bc-notes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { .bc-notes { grid-template-columns: minmax(0, 1fr); } }
+.bc-notes h3 { font-family: var(--f-display); font-weight: 400; font-size: 20px; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Rotation curves · Milky-Way-sized galaxy model</div>
+    <h1>Why don’t galaxies <em>fly apart?</em></h1>
+    <p class="lead">All three galaxies start with the same stars in the same places. The only difference is the gravity holding them together.</p>
+  </header>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Scenario">
+      <button id="m-compare" type="button" aria-pressed="true">Compare speeds</button>
+      <button id="m-remove" type="button" aria-pressed="false">Start at observed speeds</button>
+    </div>
+    <button id="play" class="btn" type="button">Pause</button>
+    <button id="reset" class="btn" type="button">Restart</button>
+    <label class="speed" for="speed">Speed <input id="speed" type="range" min="0.25" max="4" step="0.25" value="1"><output id="speedv" for="speed">1×</output></label>
+    <label class="chk" for="halo"><input id="halo" type="checkbox" checked> Show halo</label>
+  </div>
+
+  <p class="modeText" id="modeText"></p>
+
+  <div class="stage" id="stage">
+    <canvas id="gl" aria-label="Three simulated spiral galaxies. Left: visible matter with Newton's gravity. Middle: with a dark matter halo. Right: visible matter with MOND."></canvas>
+    <div class="divider d1"></div>
+    <div class="divider d2"></div>
+    <div class="tag l" style="--i:0"><span class="t" id="tagLt">Newton, visible matter only</span><span class="s" id="tagLs">Speeds predicted from stars and gas</span><span class="stat" id="esc" hidden></span></div>
+    <div class="tag c" style="--i:1"><span class="t">Dark matter halo</span><span class="s">Newton’s gravity plus unseen mass</span></div>
+    <div class="tag r" style="--i:2"><span class="t">MOND</span><span class="s">No extra mass, modified gravity</span></div>
+    <div class="hint">Drag to tilt · scroll to zoom · double-click to reset view</div>
+    <div class="hud">Elapsed <b id="elapsed">0.00</b> billion years</div>
+  </div>
+
+  <div class="lower">
+    <section class="curves">
+      <div class="curves-head">
+        <h2>Rotation curve</h2>
+        <ul class="legend">
+          <li><span class="sw vis"></span>Newton, visible only</li>
+          <li><span class="sw dm"></span>Visible + halo</li>
+          <li><span class="sw dmh"></span>Halo alone</li>
+          <li><span class="sw mo"></span>MOND</li>
+          <li id="lg-esc" hidden><span class="sw esc"></span>Escape speed, Newton visible only</li>
+        </ul>
+      </div>
+      <canvas id="chart" role="img" aria-label="Orbital speed versus distance from the galaxy center. Visible matter with Newton's gravity peaks near 165 km/s at 6 kpc and falls to about 95 km/s at 30 kpc. Adding a dark matter halo keeps the curve flat near 200 km/s. MOND, with no extra mass, also stays flat, near 190 km/s."></canvas>
+    </section>
+    <section class="notes">
+      <h2>Reading it</h2>
+      <p>The <span class="vis">amber curve</span> drops past about 6 kpc because nearly all the visible mass sits inside that radius. Farther out, a star feels roughly the pull of a single central mass, so its speed falls off like 1/√r. Planets around the Sun behave the same way.</p>
+      <p>The <span class="dm">violet curve</span> stays near 200 km/s all the way out. With Newton’s law, that only works if the enclosed mass keeps growing with radius long after the starlight fades. That extra, unseen mass is the halo.</p>
+      <p>The <span class="mo">teal curve</span> uses only the visible mass, but changes the law. Once gravity’s pull drops below a₀ ≈ 1.2 × 10⁻¹⁰ m/s², MOND says it weakens more slowly than Newton predicts. In this galaxy that happens around 7 kpc. The halo’s height was chosen to fit. MOND’s curve wasn’t: it follows from the visible mass and a₀ alone, and lands near 190 km/s.</p>
+      <p>The five white stars started in a straight line. Each trail shows how far that star moved in the last 100 million years. The second one sits about where the Sun does, 8 kpc from the center.</p>
+      <p class="fine">Simplified model: stars are test particles moving in a fixed, spherically averaged mass distribution (Hernquist bulge, exponential disk, pseudo-isothermal halo). MOND uses the “simple” interpolating function on that same visible mass. Real galaxies also have gas, self-gravity and spiral density waves. The arms here wind up over time. Real arms don’t, because they are density waves, not fixed groups of stars. Rotation curves are where MOND does best. One of its harder tests, a collision between galaxy clusters, is below.</p>
+    </section>
+  </div>
+
+  <section class="bullet" id="bullet" aria-labelledby="bc-title">
+    <header>
+      <div class="eyebrow">1E 0657−56 · about 3.7 billion light-years away</div>
+      <h2 class="big" id="bc-title">The Bullet Cluster</h2>
+      <p class="lead">Rotation curves can be explained with dark matter or with MOND. A head-on crash between two galaxy clusters is much harder to explain without dark matter, because it pulls the ordinary matter and the mass apart.</p>
+    </header>
+
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Mass map">
+        <button id="bc-obs" type="button" aria-pressed="true">Observed mass map</button>
+        <button id="bc-nodm" type="button" aria-pressed="false">If there were no dark matter</button>
+      </div>
+      <button id="bc-play" class="btn" type="button">Watch the collision</button>
+      <button id="bc-pause" class="btn" type="button">Play</button>
+      <button id="bc-now" class="btn" type="button">Jump to today</button>
+    </div>
+
+    <div class="timeline">
+      <label for="bc-time">Time</label>
+      <input id="bc-time" type="range" min="-900" max="700" step="1" value="160">
+      <output id="bc-tv" for="bc-time">+160 Myr after core passage · today</output>
+    </div>
+
+    <div class="stage bc-stage" id="bc-stage">
+      <canvas id="bc-gl" aria-label="Two galaxy clusters colliding. Galaxies and dark matter pass through each other; the hot gas is slowed and left in the middle. White contours show where the mass is."></canvas>
+      <div class="bc-wait" id="bc-wait">Computing the collision…</div>
+      <div class="bc-label" id="bc-l1" hidden>Main cluster</div>
+      <div class="bc-label" id="bc-l2" hidden>Bullet</div>
+      <div class="hint">Drag to tilt · scroll to zoom · double-click to reset view</div>
+      <div class="hud" id="bc-hud"></div>
+    </div>
+
+    <div class="layers" role="group" aria-label="Layers">
+      <label for="ly-gal"><input id="ly-gal" type="checkbox" checked><span class="dot gal"></span>Galaxies</label>
+      <label for="ly-gas"><input id="ly-gas" type="checkbox" checked><span class="dot gas"></span>Hot gas, seen in X-rays</label>
+      <label for="ly-dm"><input id="ly-dm" type="checkbox" checked><span class="dot dm"></span>Dark matter</label>
+      <label for="ly-mass"><input id="ly-mass" type="checkbox" checked><span class="dot mass"></span>Mass contours, from lensing</label>
+    </div>
+
+    <div class="bc-notes">
+      <section class="notes">
+        <h3>Three parts, three behaviors</h3>
+        <p><span class="vis">Galaxies</span> are small and far apart, so the two sets pass through each other with almost no collisions.</p>
+        <p><span class="gas">Hot gas</span> fills the space between the galaxies and holds most of the ordinary matter, several times more than the galaxies themselves. The two gas clouds hit each other, slow down and get left behind in the middle. The bright arc ahead of the bullet’s gas is a shock front, like a sonic boom.</p>
+        <p><span class="dm">Dark matter</span>, if it barely interacts with anything, should pass straight through along with the galaxies.</p>
+      </section>
+      <section class="notes">
+        <h3>What was measured</h3>
+        <p>Chandra’s X-ray images show where the gas is. Gravitational lensing shows where the mass is: the cluster’s gravity slightly stretches the images of galaxies behind it, and mapping that stretch maps the mass. In 2006, Douglas Clowe and colleagues found the mass peaks sitting on the galaxies, well away from the gas, at 8σ significance.</p>
+        <p>If the gas made up most of the mass, the lensing peaks would sit on the pink clouds. Switch to “If there were no dark matter” to see that version. It isn’t what was observed.</p>
+        <p class="fine">Schematic animation, not a hydrodynamic simulation. The cluster cores follow a simple orbit, and the gas feels its own cluster’s pull plus drag wherever it overlaps the other cloud. Speed and timing are in the range of published models: a collision near 3,000 km/s, about 150 million years ago. Shapes are illustrative. The “no dark matter” view keeps the same motions and changes only where the lensing mass is. MOND supporters point out that MOND already needs some extra unseen mass in clusters, such as heavy neutrinos, so the Bullet Cluster doesn’t rule MOND out on its own. It does show that most of this system’s mass is not in the gas.</p>
+      </section>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  if (!window.THREE) {
+    document.getElementById('stage').innerHTML = '<p class="err">The 3D library did not load. Check your connection and reload the page.</p>';
+    return;
+  }
+
+  // ---------- Units: kpc, km/s, solar masses. Time unit = 1 kpc / (km/s) = 0.9778 Gyr ----------
+  const G = 4.30091e-6;
+  const MB = 1.0e10, AB = 0.6;     // Hernquist bulge
+  const MD = 5.0e10, RD = 3.2;     // exponential disk (spherically averaged)
+  const VH = 200, RC = 4.0;        // pseudo-isothermal halo: asymptotic speed, core radius
+  const HALO_K = VH * VH * RC / G;
+  const A0 = 1.2e-10 / 3.2408e-14; // MOND a0 in (km/s)^2 / kpc  (~3703)
+  const GYR_PER_UNIT = 0.9778;
+
+  function massVis(r) { const x = r / RD, s = r + AB; return MB * r * r / (s * s) + MD * (1 - (1 + x) * Math.exp(-x)); }
+  function massHalo(r) { const h = r / RC; return HALO_K * (h - Math.atan(h)); }
+  // Returns g(r)/r, so acceleration = -accelOverR * position. model: 'newton' | 'halo' | 'mond'
+  function accelOverR(r, model) {
+    const x = r / RD, s = r + AB;
+    let M = MB * r * r / (s * s) + MD * (1 - (1 + x) * Math.exp(-x));
+    if (model === 'halo') { const h = r / RC; M += HALO_K * (h - Math.atan(h)); }
+    const k = G * M / (r * r * r);
+    if (model === 'mond') { const y = k * r / A0; return k * (0.5 + Math.sqrt(0.25 + 1 / y)); }
+    return k;
+  }
+  function vcirc(r, model) { return r * Math.sqrt(accelOverR(r, model)); }
+
+  // Escape speed from visible matter only (Newton): v = sqrt(2 |Phi(r)|), Phi integrated inward on a log grid.
+  const escTable = (function () {
+    const n = 600, r0 = 0.05, r1 = 5000, lr0 = Math.log(r0), lr1 = Math.log(r1);
+    const rs = new Float64Array(n), phi = new Float64Array(n);
+    for (let i = 0; i < n; i++) rs[i] = Math.exp(lr0 + (lr1 - lr0) * i / (n - 1));
+    phi[n - 1] = -G * massVis(r1) / r1;
+    for (let i = n - 2; i >= 0; i--) {
+      const a = rs[i], b = rs[i + 1];
+      const fa = G * massVis(a) / (a * a), fb = G * massVis(b) / (b * b);
+      phi[i] = phi[i + 1] - 0.5 * (fa + fb) * (b - a);
+    }
+    return { rs, phi, lr0, lr1, n };
+  })();
+  function vEscVis(r) {
+    const t = escTable, f = (Math.log(r) - t.lr0) / (t.lr1 - t.lr0) * (t.n - 1);
+    const i = Math.max(0, Math.min(t.n - 2, Math.floor(f))), u = f - i;
+    return Math.sqrt(-2 * (t.phi[i] * (1 - u) + t.phi[i + 1] * u));
+  }
+
+  // ---------- Seeded random ----------
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const rnd = mulberry32(20261001);
+  function gauss() { let u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); }
+
+  // ---------- Shared initial star field ----------
+  const N = 6000, TR = [3, 8, 14, 20, 26], T = TR.length, NT = N + T;
+  const base = {
+    x: new Float64Array(NT), y: new Float64Array(NT), z: new Float32Array(NT),
+    col: new Float32Array(NT * 3), size: new Float32Array(NT),
+    jt: new Float64Array(NT), jr: new Float64Array(NT)
+  };
+  const PITCH_COT = 1 / Math.tan(0.25);
+  for (let i = 0; i < N; i++) {
+    let R, th, z, c, s;
+    if (rnd() < 0.16) { // bulge
+      let r; do { const q = Math.sqrt(rnd()); r = AB * q / (1 - q); } while (r > 4);
+      const cz = 2 * rnd() - 1, sz = Math.sqrt(1 - cz * cz);
+      R = Math.max(0.28, r * sz); z = r * cz * 0.7; th = rnd() * Math.PI * 2;
+      const b = 0.55 + 0.45 * rnd();
+      c = [1.0 * b, (0.74 + 0.12 * rnd()) * b, (0.46 + 0.14 * rnd()) * b]; s = 1.3 + rnd() * 1.1;
+    } else { // disk
+      do { R = -3.6 * Math.log(rnd() * rnd()); } while (R > 34 || R < 0.7);
+      const armed = rnd() < 0.62;
+      if (armed) th = Math.log(R / 1.5) * PITCH_COT + (rnd() < 0.5 ? 0 : Math.PI) + gauss() * 0.26;
+      else th = rnd() * Math.PI * 2;
+      z = gauss() * 0.16 * (1 + R / 18);
+      if (armed && rnd() < 0.035) { c = [1.0, 0.42, 0.58]; s = 2.4 + rnd() * 1.4; }      // HII regions
+      else if (armed) { const b = 0.6 + 0.4 * rnd(); c = [0.62 * b, 0.76 * b, 1.0 * b]; s = 1.3 + rnd() * 1.6; }
+      else { const b = 0.35 + 0.35 * rnd(); c = [0.95 * b, 0.9 * b, 0.82 * b]; s = 1.0 + rnd() * 1.0; }
+    }
+    base.x[i] = R * Math.cos(th); base.y[i] = R * Math.sin(th); base.z[i] = z;
+    base.col.set(c, i * 3); base.size[i] = s;
+    base.jt[i] = 1 + gauss() * 0.03; base.jr[i] = gauss() * 0.025;
+  }
+  const TRACER_ANGLE = -0.5;
+  for (let k = 0; k < T; k++) {
+    const i = N + k;
+    base.x[i] = TR[k] * Math.cos(TRACER_ANGLE); base.y[i] = TR[k] * Math.sin(TRACER_ANGLE); base.z[i] = 0;
+    base.col.set([1, 1, 1], i * 3); base.size[i] = 6.5; base.jt[i] = 1; base.jr[i] = 0;
+  }
+
+  // ---------- Three.js setup ----------
+  const css = getComputedStyle(document.documentElement);
+  const tok = name => css.getPropertyValue(name).trim();
+  const canvas = document.getElementById('gl');
+  const stage = document.getElementById('stage');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setClearColor(new THREE.Color(tok('--void')), 1);
+  renderer.setScissorTest(true);
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 4000);
+  const view = { az: 0.35, el: 0.95, dist: 92 };
+  const DEFAULT_VIEW = { ...view };
+
+  const starVS = `
+    attribute vec3 acolor; attribute float asize;
+    uniform float uScale; varying vec3 vColor;
+    void main() {
+      vColor = acolor;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = max(asize * uScale / -mv.z, 1.6);
+      gl_Position = projectionMatrix * mv;
+    }`;
+  const starFS = `
+    uniform float uGain; varying vec3 vColor;
+    void main() {
+      float d = length(gl_PointCoord - 0.5);
+      float a = pow(smoothstep(0.5, 0.0, d), 1.6);
+      gl_FragColor = vec4(vColor * uGain, a);
+    }`;
+  function pointsMaterial(gain) {
+    return new THREE.ShaderMaterial({
+      uniforms: { uScale: { value: 100 }, uGain: { value: gain } },
+      vertexShader: starVS, fragmentShader: starFS,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+  }
+  const materials = [];
+
+  const TRAIL_K = 70, SAMPLE = 0.0015; // 70 samples x ~1.47 Myr = ~100 Myr of trail
+  function makeGalaxy(trailHex) {
+    const scene = new THREE.Scene();
+    const g = {
+      scene, model: 'newton',
+      x: new Float64Array(NT), y: new Float64Array(NT), vx: new Float64Array(NT), vy: new Float64Array(NT),
+      ax: new Float64Array(NT), ay: new Float64Array(NT), alive: new Uint8Array(NT),
+      pos: new Float32Array(NT * 3), trails: []
+    };
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(g.pos, 3));
+    geo.setAttribute('acolor', new THREE.BufferAttribute(base.col, 3));
+    geo.setAttribute('asize', new THREE.BufferAttribute(base.size, 1));
+    const mat = pointsMaterial(0.62); materials.push(mat);
+    const pts = new THREE.Points(geo, mat); pts.frustumCulled = false;
+    scene.add(pts); g.geo = geo;
+
+    const tc = new THREE.Color(trailHex);
+    for (let k = 0; k < T; k++) {
+      const buf = new Float32Array(TRAIL_K * 3), ordered = new Float32Array(TRAIL_K * 3), colors = new Float32Array(TRAIL_K * 3);
+      for (let j = 0; j < TRAIL_K; j++) {
+        const f = Math.pow(j / (TRAIL_K - 1), 1.6);
+        colors[j * 3] = tc.r * f; colors[j * 3 + 1] = tc.g * f; colors[j * 3 + 2] = tc.b * f;
+      }
+      const tg = new THREE.BufferGeometry();
+      tg.setAttribute('position', new THREE.BufferAttribute(ordered, 3));
+      tg.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      const line = new THREE.Line(tg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      line.frustumCulled = false;
+      scene.add(line);
+      g.trails.push({ buf, ordered, head: 0, geo: tg });
+    }
+    return g;
+  }
+  const GN = makeGalaxy(tok('--visible'));  // Newton, visible only
+  const GH = makeGalaxy(tok('--dark'));     // dark matter halo
+  const GM = makeGalaxy(tok('--mond'));     // MOND
+  const GALAXIES = [GN, GH, GM];
+
+  // Dark matter halo cloud (middle panel only), sampled from the pseudo-isothermal mass profile.
+  const haloGroup = new THREE.Group();
+  (function () {
+    const n = 2600, hmax = 46 / RC, mmax = hmax - Math.atan(hmax);
+    const p = new Float32Array(n * 3), c = new Float32Array(n * 3), s = new Float32Array(n);
+    const hc = new THREE.Color(tok('--dark'));
+    for (let i = 0; i < n; i++) {
+      const target = rnd() * mmax; let lo = 0, hi = hmax;
+      for (let it = 0; it < 40; it++) { const m = (lo + hi) / 2; (m - Math.atan(m) < target) ? lo = m : hi = m; }
+      const r = (lo + hi) / 2 * RC, cz = 2 * rnd() - 1, sz = Math.sqrt(1 - cz * cz), ph = rnd() * Math.PI * 2;
+      p[i * 3] = r * sz * Math.cos(ph); p[i * 3 + 1] = r * cz; p[i * 3 + 2] = r * sz * Math.sin(ph);
+      const b = 0.14 + 0.1 * rnd();
+      c[i * 3] = hc.r * b; c[i * 3 + 1] = hc.g * b; c[i * 3 + 2] = hc.b * b; s[i] = 7 + rnd() * 7;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    geo.setAttribute('acolor', new THREE.BufferAttribute(c, 3));
+    geo.setAttribute('asize', new THREE.BufferAttribute(s, 1));
+    const mat = pointsMaterial(1.0); materials.push(mat);
+    const pts = new THREE.Points(geo, mat); pts.frustumCulled = false;
+    haloGroup.add(pts);
+  })();
+  GH.scene.add(haloGroup);
+
+  // ---------- Simulation ----------
+  let mode = 'compare', running = true, simT = 0, sampleAcc = 0, speed = 1;
+  const RATE = 0.1;     // sim time units per real second at 1x (~98 Myr per second)
+  const DT_MAX = 4e-4;
+
+  function writePositions(g) {
+    for (let i = 0; i < NT; i++) {
+      g.pos[i * 3] = g.x[i]; g.pos[i * 3 + 1] = base.z[i]; g.pos[i * 3 + 2] = -g.y[i];
+    }
+    g.geo.attributes.position.needsUpdate = true;
+  }
+  function refreshTrail(g, k) {
+    const t = g.trails[k];
+    for (let j = 0; j < TRAIL_K; j++) {
+      const src = ((t.head + j) % TRAIL_K) * 3;
+      t.ordered[j * 3] = t.buf[src]; t.ordered[j * 3 + 1] = t.buf[src + 1]; t.ordered[j * 3 + 2] = t.buf[src + 2];
+    }
+    t.geo.attributes.position.needsUpdate = true;
+  }
+  function pushTrails(g) {
+    for (let k = 0; k < T; k++) {
+      const i = N + k, t = g.trails[k], o = t.head * 3;
+      t.buf[o] = g.x[i]; t.buf[o + 1] = 0; t.buf[o + 2] = -g.y[i];
+      t.head = (t.head + 1) % TRAIL_K;
+    }
+  }
+
+  function initGalaxy(g, gravityModel, speedModel) {
+    g.model = gravityModel;
+    for (let i = 0; i < NT; i++) {
+      const x = base.x[i], y = base.y[i], r = Math.hypot(x, y);
+      const v = vcirc(r, speedModel) * base.jt[i], vr = v * base.jr[i];
+      g.x[i] = x; g.y[i] = y;
+      g.vx[i] = -v * y / r + vr * x / r; g.vy[i] = v * x / r + vr * y / r;
+      const k = accelOverR(r, gravityModel); g.ax[i] = -k * x; g.ay[i] = -k * y; g.alive[i] = 1;
+    }
+    for (let k = 0; k < T; k++) {
+      const i = N + k, t = g.trails[k];
+      for (let j = 0; j < TRAIL_K; j++) { t.buf[j * 3] = g.x[i]; t.buf[j * 3 + 1] = 0; t.buf[j * 3 + 2] = -g.y[i]; }
+      t.head = 0; refreshTrail(g, k);
+    }
+    writePositions(g);
+  }
+
+  function step(g, dt) { // kick-drift-kick leapfrog
+    const h = dt * 0.5, model = g.model, x = g.x, y = g.y, vx = g.vx, vy = g.vy, ax = g.ax, ay = g.ay, alive = g.alive;
+    for (let i = 0; i < NT; i++) {
+      if (!alive[i]) continue;
+      vx[i] += ax[i] * h; vy[i] += ay[i] * h;
+      x[i] += vx[i] * dt; y[i] += vy[i] * dt;
+      const r = Math.hypot(x[i], y[i]);
+      if (r > 600) { alive[i] = 0; continue; }
+      const k = accelOverR(Math.max(r, 0.05), model);
+      ax[i] = -k * x[i]; ay[i] = -k * y[i];
+      vx[i] += ax[i] * h; vy[i] += ay[i] * h;
+    }
+  }
+
+  function advance(simDt) {
+    const n = Math.ceil(simDt / DT_MAX), h = simDt / n;
+    for (let s = 0; s < n; s++) {
+      for (const g of GALAXIES) step(g, h);
+      simT += h; sampleAcc += h;
+      if (sampleAcc >= SAMPLE) { sampleAcc -= SAMPLE; GALAXIES.forEach(pushTrails); }
+    }
+    for (const g of GALAXIES) {
+      writePositions(g);
+      for (let k = 0; k < T; k++) refreshTrail(g, k);
+    }
+  }
+
+  // ---------- UI ----------
+  const el = id => document.getElementById(id);
+  const MODE_TEXT = {
+    compare: 'Each galaxy starts at the speeds its own gravity can hold. <b class="vis">Left:</b> Newton’s gravity from the visible stars and gas alone. <b class="dm">Middle:</b> the same, plus a dark matter halo. <b class="mo">Right:</b> no extra mass, but MOND’s modified gravity. The halo and MOND both keep the outer stars moving about twice as fast as Newton predicts. They disagree about why.',
+    remove: 'All three galaxies start at the <b>observed</b> speeds. <b class="vis">Left:</b> Newton’s gravity from visible matter alone can’t hold stars that fast, so the outer disk swings outward and many stars escape. <b class="dm">Middle:</b> the halo’s extra mass holds them. <b class="mo">Right:</b> MOND holds them too, with no extra mass at all.'
+  };
+  function setMode(m) {
+    mode = m;
+    el('m-compare').setAttribute('aria-pressed', m === 'compare');
+    el('m-remove').setAttribute('aria-pressed', m === 'remove');
+    el('modeText').innerHTML = MODE_TEXT[m];
+    el('tagLs').textContent = m === 'compare' ? 'Speeds predicted from stars and gas' : 'Observed speeds, visible gravity only';
+    el('esc').hidden = m !== 'remove';
+    el('lg-esc').hidden = m !== 'remove';
+    restart();
+    drawChart();
+  }
+  function restart() {
+    simT = 0; sampleAcc = 0;
+    const observed = mode === 'remove';
+    initGalaxy(GN, 'newton', observed ? 'halo' : 'newton');
+    initGalaxy(GH, 'halo', 'halo');
+    initGalaxy(GM, 'mond', observed ? 'halo' : 'mond');
+    updateHud();
+  }
+  let hudFrame = 0;
+  function updateHud() {
+    el('elapsed').textContent = (simT * GYR_PER_UNIT).toFixed(2);
+    if (mode === 'remove') {
+      let out = 0;
+      for (let i = 0; i < N; i++) if (!GN.alive[i] || Math.hypot(GN.x[i], GN.y[i]) > 60) out++;
+      el('esc').textContent = 'Beyond 60 kpc: ' + (100 * out / N).toFixed(0) + '% of stars';
+    }
+  }
+  function setRunning(v) { running = v; el('play').textContent = v ? 'Pause' : 'Play'; }
+
+  el('m-compare').addEventListener('click', () => setMode('compare'));
+  el('m-remove').addEventListener('click', () => setMode('remove'));
+  el('play').addEventListener('click', () => setRunning(!running));
+  el('reset').addEventListener('click', restart);
+  el('speed').addEventListener('input', e => { speed = +e.target.value; el('speedv').textContent = speed + '×'; });
+  el('halo').addEventListener('change', e => { haloGroup.visible = e.target.checked; });
+
+  // Camera drag / zoom. The galaxy view is shared by all three panels.
+  function attachOrbit(cv, v, def, dMin, dMax, elMin, elMax) {
+    let drag = null;
+    cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => {
+      if (!drag) return;
+      v.az -= (e.clientX - drag.x) * 0.006;
+      v.el = Math.min(elMax, Math.max(elMin, v.el + (e.clientY - drag.y) * 0.006));
+      drag = { x: e.clientX, y: e.clientY };
+    });
+    const endDrag = () => { drag = null; };
+    cv.addEventListener('pointerup', endDrag);
+    cv.addEventListener('pointercancel', endDrag);
+    cv.addEventListener('wheel', e => { e.preventDefault(); v.dist = Math.min(dMax, Math.max(dMin, v.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
+    cv.addEventListener('dblclick', () => Object.assign(v, def));
+  }
+  attachOrbit(canvas, view, DEFAULT_VIEW, 28, 320, 0.05, 1.55);
+
+  const narrowMQ = matchMedia('(max-width: 671px)');
+  let panels = [];
+  function layout() {
+    const w = stage.clientWidth, h = stage.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(w, h, false);
+    const n = GALAXIES.length;
+    if (narrowMQ.matches) {
+      const ph = Math.floor(h / n);
+      panels = GALAXIES.map((g, i) => {
+        const top = i * ph, ht = i === n - 1 ? h - top : ph;
+        return { g, x: 0, y: h - top - ht, w, h: ht };   // GL viewport y is measured from the bottom
+      });
+    } else {
+      const pw = Math.floor(w / n);
+      panels = GALAXIES.map((g, i) => ({ g, x: i * pw, y: 0, w: i === n - 1 ? w - i * pw : pw, h }));
+    }
+    const scale = panels[0].h * dpr / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) * 0.18;
+    materials.forEach(m => { m.uniforms.uScale.value = scale; });
+  }
+  new ResizeObserver(() => { layout(); drawChart(); }).observe(stage);
+
+  function render() {
+    const ce = Math.cos(view.el);
+    for (const p of panels) {
+      const aspect = p.w / p.h, d = view.dist * Math.max(1, 1.15 / aspect); // back off in tall panels so the disk fits
+      camera.position.set(d * ce * Math.sin(view.az), d * Math.sin(view.el), d * ce * Math.cos(view.az));
+      camera.lookAt(0, 0, 0);
+      camera.aspect = aspect; camera.updateProjectionMatrix();
+      renderer.setViewport(p.x, p.y, p.w, p.h);
+      renderer.setScissor(p.x, p.y, p.w, p.h);
+      renderer.render(p.g.scene, camera);
+    }
+  }
+
+  // Skip work for whichever 3D view is scrolled out of sight.
+  let galaxyVisible = true, bcVisible = true;
+  const visIO = new IntersectionObserver(es => es.forEach(e => {
+    if (e.target === stage) galaxyVisible = e.isIntersecting; else bcVisible = e.isIntersecting;
+  }));
+  visIO.observe(stage);
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.05); last = now;
+    if (running && galaxyVisible) {
+      advance(RATE * speed * dt);
+      haloGroup.rotation.y += 0.05 * speed * dt;
+      if (++hudFrame % 6 === 0) updateHud();
+    }
+    if (galaxyVisible) render();
+    bcTick(dt);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Rotation curve chart ----------
+  const chart = el('chart'), ctx = chart.getContext('2d');
+  function drawChart() {
+    const dpr = devicePixelRatio || 1, W = chart.clientWidth, H = chart.clientHeight;
+    if (!W) return;
+    chart.width = Math.round(W * dpr); chart.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    const m = { l: 50, r: 14, t: 14, b: 42 }, XM = 30, YM = 300;
+    const pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const X = r => m.l + r / XM * pw, Y = v => m.t + ph - v / YM * ph;
+    const cLine = tok('--line'), cDim = tok('--dim'), cVis = tok('--visible'), cDm = tok('--dark'), cMo = tok('--mond'), cInk = tok('--ink');
+
+    ctx.font = '11.5px ' + tok('--f-data'); ctx.lineWidth = 1;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let v = 0; v <= YM; v += 50) {
+      ctx.strokeStyle = cLine; ctx.beginPath(); ctx.moveTo(m.l, Y(v) + 0.5); ctx.lineTo(W - m.r, Y(v) + 0.5); ctx.stroke();
+      ctx.fillStyle = cDim; ctx.fillText(v, m.l - 8, Y(v));
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let r = 0; r <= XM; r += 5) ctx.fillText(r, X(r), m.t + ph + 7);
+    ctx.font = '12.5px ' + tok('--f-body');
+    ctx.fillText('Distance from center (kpc)', m.l + pw / 2, m.t + ph + 24);
+    ctx.save(); ctx.translate(13, m.t + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle';
+    ctx.fillText('Orbital speed (km/s)', 0, 0); ctx.restore();
+
+    // Sun marker
+    ctx.strokeStyle = cLine; ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(X(8.2) + 0.5, m.t); ctx.lineTo(X(8.2) + 0.5, m.t + ph); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = cDim; ctx.font = '11.5px ' + tok('--f-data'); ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('Sun', X(8.2) + 5, m.t + 2);
+
+    ctx.save(); ctx.beginPath(); ctx.rect(m.l, m.t, pw, ph); ctx.clip();
+    function curve(fn, color, width, dash) {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      for (let r = 0.2; r <= XM + 0.001; r += 0.1) { const px = X(r), py = Y(fn(r)); r < 0.25 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (mode === 'remove') curve(vEscVis, cVis, 1.6, [2, 4]);
+    curve(r => Math.sqrt(G * massHalo(r) / r), cDm, 1.4, [6, 5]);
+    curve(r => vcirc(r, 'newton'), cVis, 2.6);
+    curve(r => vcirc(r, 'mond'), cMo, 2.6);
+    curve(r => vcirc(r, 'halo'), cDm, 2.6);
+    ctx.restore();
+
+    // Tracer star markers: where each marked star starts on the chart
+    const sets = mode === 'remove' ? [['halo', cDm]] : [['newton', cVis], ['mond', cMo], ['halo', cDm]];
+    for (const r of TR) {
+      for (const [model, c] of sets) {
+        ctx.beginPath(); ctx.arc(X(r), Y(vcirc(r, model)), 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = cInk; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = c; ctx.stroke();
+      }
+    }
+  }
+
+  // ================= Bullet Cluster (schematic) =================
+  // Units: kpc and Myr (1 kpc/Myr ≈ 978 km/s). Time 0 = the moment the two cores pass through each other.
+  const BC = { T0: -900, T1: 700, FDT: 4, NOW: 160, RATE: 110, XR: 1700, YR: 1062.5, GX: 129, GY: 81 };
+  const BP = {
+    GMT: 3265, Q: 0.12, AENC: 600, VPERI: 3.0,   // relative orbit: total GM, bullet/main mass ratio, softening, speed at core passage
+    NG: [3000, 900], RC: [280, 90], RMAX: [1100, 420], A: [1.0, 2.0], S: [400, 150], // gas: count, core radius, extent, central density, potential scale
+    BETA: 0.004, CAP: 25, GAMMA: 0.001,          // ram-pressure drag, its cap, internal damping
+    DM_A: [380, 150], GAL_A: [300, 110], NDM: [2400, 700], NGAL: [260, 90],
+    F_DM: 0.84, F_GAS: 0.14, F_GAL: 0.02         // share of each cluster's mass
+  };
+
+  function buildBullet(rnd) {
+    const nF = Math.round((BC.T1 - BC.T0) / BC.FDT) + 1, f0 = -BC.T0 / BC.FDT;
+    const frac = [1 / (1 + BP.Q), BP.Q / (1 + BP.Q)];
+    // Relative orbit X(t) = bullet minus main, integrated both ways from core passage.
+    const relX = new Float64Array(nF), relV = new Float64Array(nF);
+    const acc = x => -BP.GMT * x / Math.pow(x * x + BP.AENC * BP.AENC, 1.5);
+    const spf = BC.FDT / 0.25;
+    relV[f0] = BP.VPERI;
+    for (const dir of [1, -1]) {
+      let x = 0, v = BP.VPERI, a = 0;
+      const h = 0.25 * dir, nSteps = (dir > 0 ? nF - 1 - f0 : f0) * spf;
+      for (let s = 1; s <= nSteps; s++) {
+        v += a * h / 2; x += v * h; a = acc(x); v += a * h / 2;
+        if (s % spf === 0) { const fi = f0 + dir * s / spf; relX[fi] = x; relV[fi] = v; }
+      }
+    }
+    const C = [new Float64Array(nF), new Float64Array(nF)], V = [new Float64Array(nF), new Float64Array(nF)];
+    for (let i = 0; i < nF; i++) {
+      C[0][i] = -frac[1] * relX[i]; C[1][i] = frac[0] * relX[i];
+      V[0][i] = -frac[1] * relV[i]; V[1][i] = frac[0] * relV[i];
+    }
+
+    // Gas: each particle keeps its transverse offset; its x feels a pull back toward its own
+    // cluster plus ram-pressure drag wherever it overlaps the other cluster's gas.
+    const NG = BP.NG[0] + BP.NG[1];
+    const cid = new Uint8Array(NG), ox = new Float32Array(NG), oy = new Float32Array(NG), oz = new Float32Array(NG);
+    const w2 = new Float64Array(NG), selfD = new Float64Array(NG);
+    for (let c = 0, k = 0; c < 2; c++) {
+      const rc = BP.RC[c], pmax = rc * rc * 0.385, GMc = BP.GMT * frac[c];
+      for (let j = 0; j < BP.NG[c]; j++, k++) {
+        let r; do { r = rnd() * BP.RMAX[c]; } while (rnd() * pmax > r * r / Math.pow(1 + r * r / (rc * rc), 1.5));
+        const cz = 2 * rnd() - 1, sz = Math.sqrt(1 - cz * cz), ph = rnd() * Math.PI * 2;
+        cid[k] = c; ox[k] = r * sz * Math.cos(ph); oy[k] = r * sz * Math.sin(ph); oz[k] = r * cz;
+        selfD[k] = Math.pow(1 + r * r / (rc * rc), -1.5);
+        w2[k] = GMc / Math.pow(r * r + BP.S[c] * BP.S[c], 1.5);
+      }
+    }
+    const gx = new Float64Array(NG), gv = new Float64Array(NG);
+    for (let i = 0; i < NG; i++) { gx[i] = C[cid[i]][0] + ox[i]; gv[i] = V[cid[i]][0]; }
+    const frames = new Float32Array(nF * NG), core = [new Float32Array(nF), new Float32Array(nF)];
+    const cx = [0, 0], cv = [0, 0];
+    function measureCores() { // density-weighted gas core position and velocity of each cluster
+      const sx = [0, 0], sv = [0, 0], sw = [0, 0];
+      for (let i = 0; i < NG; i++) { const c = cid[i], w = selfD[i]; sx[c] += w * (gx[i] - ox[i]); sv[c] += w * gv[i]; sw[c] += w; }
+      for (let c = 0; c < 2; c++) { cx[c] = sx[c] / sw[c]; cv[c] = sv[c] / sw[c]; }
+    }
+    for (let fi = 0; fi < nF; fi++) {
+      measureCores();
+      core[0][fi] = cx[0]; core[1][fi] = cx[1];
+      for (let i = 0; i < NG; i++) frames[fi * NG + i] = gx[i];
+      if (fi === nF - 1) break;
+      for (let s = 0; s < BC.FDT; s++) { // 1 Myr steps
+        const u = s / BC.FDT;
+        const Cc0 = C[0][fi] + (C[0][fi + 1] - C[0][fi]) * u, Cc1 = C[1][fi] + (C[1][fi + 1] - C[1][fi]) * u;
+        const Vc0 = V[0][fi] + (V[0][fi + 1] - V[0][fi]) * u, Vc1 = V[1][fi] + (V[1][fi + 1] - V[1][fi]) * u;
+        for (let i = 0; i < NG; i++) {
+          const c = cid[i], d = 1 - c, Cc = c ? Cc1 : Cc0, Vc = c ? Vc1 : Vc0;
+          const dx = gx[i] - cx[d], r2 = dx * dx + oy[i] * oy[i] + oz[i] * oz[i];
+          const rhoO = BP.A[d] * Math.pow(1 + r2 / (BP.RC[d] * BP.RC[d]), -1.5);
+          const beta = BP.BETA * Math.min(BP.CAP, rhoO / (BP.A[c] * selfD[i]));
+          gv[i] += -w2[i] * (gx[i] - (Cc + ox[i])) - BP.GAMMA * (gv[i] - Vc) - beta * (gv[i] - cv[d]);
+          gx[i] += gv[i];
+        }
+      }
+    }
+
+    // Collisionless parts (dark matter, galaxies): Plummer clouds that ride with their cluster.
+    function cloud(nArr, aArr, rmaxArr) {
+      const n = nArr[0] + nArr[1], o = { n, cid: new Uint8Array(n), ox: new Float32Array(n), oy: new Float32Array(n), oz: new Float32Array(n) };
+      for (let c = 0, k = 0; c < 2; c++) for (let j = 0; j < nArr[c]; j++, k++) {
+        let r; do { r = aArr[c] / Math.sqrt(Math.pow(rnd(), -2 / 3) - 1); } while (!(r < rmaxArr[c]));
+        if (j === 0) r = 0; // brightest cluster galaxy / densest point at the center
+        const cz = 2 * rnd() - 1, sz = Math.sqrt(1 - cz * cz), ph = rnd() * Math.PI * 2;
+        o.cid[k] = c; o.ox[k] = r * sz * Math.cos(ph); o.oy[k] = r * sz * Math.sin(ph); o.oz[k] = r * cz;
+      }
+      return o;
+    }
+    return {
+      nF, frac, C, NG, cid, ox, oy, oz, selfD, frames, core,
+      dm: cloud(BP.NDM, BP.DM_A, [1500, 600]), gal: cloud(BP.NGAL, BP.GAL_A, [1100, 450])
+    };
+  }
+
+  const bcCanvas = el('bc-gl'), bcStage = el('bc-stage');
+  visIO.observe(bcStage);
+  const bcView = { az: 0, el: 0.12, dist: 2700 };
+  const BC_DEFAULT = { ...bcView };
+  attachOrbit(bcCanvas, bcView, BC_DEFAULT, 900, 9000, -1.3, 1.3);
+  let bc = null, bcT = BC.NOW, bcPlaying = false, bcStopAtNow = false, bcMode = 'obs', bcDirty = true;
+
+  function initBulletScene(M, rnd) {
+    const r2 = new THREE.WebGLRenderer({ canvas: bcCanvas, antialias: true });
+    r2.setClearColor(new THREE.Color(tok('--void')), 1);
+    const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(40, 1, 10, 60000), mats = [];
+    function cloudPoints(n, colorFn, sizeFn, gain) {
+      const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), size = new Float32Array(n);
+      for (let i = 0; i < n; i++) { col.set(colorFn(i), i * 3); size[i] = sizeFn(i); }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('acolor', new THREE.BufferAttribute(col, 3));
+      geo.setAttribute('asize', new THREE.BufferAttribute(size, 1));
+      const mat = pointsMaterial(gain); mats.push(mat);
+      const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; scene.add(pts);
+      return { pts, pos, geo, mat };
+    }
+    const cDm = new THREE.Color(tok('--dark')), cGas = new THREE.Color(tok('--gas')), cGal = new THREE.Color(tok('--visible'));
+    const dm = cloudPoints(M.dm.n, () => { const b = 0.045 + 0.03 * rnd(); return [cDm.r * b, cDm.g * b, cDm.b * b]; },
+      i => (M.dm.cid[i] ? 45 : 75) * (0.7 + 0.6 * rnd()), 1.0);
+    const gas = cloudPoints(M.NG, i => { const b = 0.04 + 0.18 * Math.sqrt(M.selfD[i]); return [cGas.r * b, cGas.g * b, cGas.b * b]; },
+      i => (M.cid[i] ? 30 : 55) + 40 * (1 - M.selfD[i]), 1.0);
+    const galStart = [0, BP.NGAL[0]];
+    const gal = cloudPoints(M.gal.n, i => {
+      const b = 0.55 + 0.45 * rnd(), w = 0.35 * rnd(); // mix toward white
+      return [(cGal.r + (1 - cGal.r) * w) * b, (cGal.g + (1 - cGal.g) * w) * b, (cGal.b + (1 - cGal.b) * w) * b];
+    }, i => galStart.includes(i) ? 46 : 10 + 12 * rnd(), 0.9);
+
+    // Bow shock: a paraboloid shell that rides ahead of the bullet's gas.
+    const shockN = 800, shock = cloudPoints(shockN, () => [0.12, 0.085, 0.11], () => 18 + 10 * rnd(), 0);
+    for (let i = 0; i < shockN; i++) {
+      const rho = 430 * Math.sqrt(rnd()), ph = rnd() * Math.PI * 2;
+      shock.pos[i * 3] = -rho * rho / (2 * 260) + gauss() * 6;
+      shock.pos[i * 3 + 1] = rho * Math.cos(ph); shock.pos[i * 3 + 2] = rho * Math.sin(ph);
+    }
+    shock.geo.attributes.position.needsUpdate = true;
+
+    // Lensing mass contours, drawn to a canvas texture on the sky plane.
+    const cc = document.createElement('canvas'); cc.width = 1024; cc.height = 640;
+    const tex = new THREE.CanvasTexture(cc);
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(2 * BC.XR, 2 * BC.YR),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
+    plane.renderOrder = 10; scene.add(plane);
+    return { M, r2, scene, cam, mats, dm, gas, gal, shock, cc, cctx: cc.getContext('2d'), tex, plane, gasX: new Float32Array(M.NG) };
+  }
+
+  // ---- Projected mass field ----
+  const GXc = BC.GX, GYc = BC.GY, CELL = 2 * BC.XR / (GXc - 1), ROW0 = (GYc - 1) / 2;
+  const field = new Float32Array(GXc * GYc), gasF = new Float32Array(GXc * GYc), blurTmp = new Float32Array(GXc * GYc);
+  const KER = (function () { const s = 2, k = []; let sum = 0; for (let i = -6; i <= 6; i++) { const v = Math.exp(-i * i / (2 * s * s)); k.push(v); sum += v; } return k.map(v => v / sum); })();
+  function blur(a) {
+    for (let j = 0; j < GYc; j++) for (let i = 0; i < GXc; i++) {
+      let s = 0; for (let q = -6; q <= 6; q++) { const ii = Math.min(GXc - 1, Math.max(0, i + q)); s += a[j * GXc + ii] * KER[q + 6]; }
+      blurTmp[j * GXc + i] = s;
+    }
+    for (let j = 0; j < GYc; j++) for (let i = 0; i < GXc; i++) {
+      let s = 0; for (let q = -6; q <= 6; q++) { const jj = Math.min(GYc - 1, Math.max(0, j + q)); s += blurTmp[jj * GXc + i] * KER[q + 6]; }
+      a[j * GXc + i] = s;
+    }
+  }
+  const plum = (R2, a) => a * a / (Math.PI * (R2 + a * a) * (R2 + a * a)); // projected Plummer, unit mass
+  function computeField(M, gasX, c0, c1, withDM) {
+    gasF.fill(0);
+    const w = [BP.F_GAS * M.frac[0] / BP.NG[0] / (CELL * CELL), BP.F_GAS * M.frac[1] / BP.NG[1] / (CELL * CELL)];
+    for (let i = 0; i < M.NG; i++) {
+      const gx = (gasX[i] + BC.XR) / CELL, gy = (M.oy[i] + BC.YR) / CELL, i0 = Math.floor(gx), j0 = Math.floor(gy);
+      if (i0 < 0 || j0 < 0 || i0 >= GXc - 1 || j0 >= GYc - 1) continue;
+      const fx = gx - i0, fy = gy - j0, m = w[M.cid[i]], k = j0 * GXc + i0;
+      gasF[k] += m * (1 - fx) * (1 - fy); gasF[k + 1] += m * fx * (1 - fy);
+      gasF[k + GXc] += m * (1 - fx) * fy; gasF[k + GXc + 1] += m * fx * fy;
+    }
+    blur(gasF);
+    const cs = [c0, c1];
+    for (let j = 0; j < GYc; j++) {
+      const Y = -BC.YR + j * CELL;
+      for (let i = 0; i < GXc; i++) {
+        const X = -BC.XR + i * CELL; let s = gasF[j * GXc + i];
+        for (let c = 0; c < 2; c++) {
+          const R2 = (X - cs[c]) * (X - cs[c]) + Y * Y;
+          s += BP.F_GAL * M.frac[c] * plum(R2, BP.GAL_A[c]);
+          if (withDM) s += BP.F_DM * M.frac[c] * plum(R2, BP.DM_A[c]);
+        }
+        field[j * GXc + i] = s;
+      }
+    }
+  }
+  // Highest local maximum along the collision axis within xc ± half, refined with a parabola.
+  // Bumps under 15% of the map's maximum don't count as peaks. NaN if none.
+  function peakNear(a, xc, half) {
+    let best = 0, bi = -1;
+    for (let k = 0; k < a.length; k++) if (a[k] > best) best = a[k];
+    best *= 0.15;
+    for (let i = 1; i < GXc - 1; i++) {
+      const X = -BC.XR + i * CELL, k = ROW0 * GXc + i, v = a[k];
+      if (Math.abs(X - xc) < half && v >= a[k - 1] && v > a[k + 1] && v > best) { best = v; bi = i; }
+    }
+    if (bi < 1) return NaN;
+    const l = a[ROW0 * GXc + bi - 1], m = a[ROW0 * GXc + bi], r = a[ROW0 * GXc + bi + 1], den = l - 2 * m + r;
+    return -BC.XR + (bi + (den < 0 ? 0.5 * (l - r) / den : 0)) * CELL;
+  }
+
+  // Marching squares. Corner bits: tl=8, tr=4, br=2, bl=1. Edges: 0 top, 1 right, 2 bottom, 3 left.
+  const MS = [[], [[3, 2]], [[2, 1]], [[3, 1]], [[0, 1]], [[3, 0], [2, 1]], [[0, 2]], [[3, 0]],
+    [[3, 0]], [[0, 2]], [[0, 1], [3, 2]], [[0, 1]], [[3, 1]], [[2, 1]], [[3, 2]], []];
+  const LEVELS = [0.85, 0.62, 0.45, 0.33, 0.24, 0.17, 0.12, 0.085];
+  function drawContours(s, peaks) {
+    const ctx2 = s.cctx, W = s.cc.width, H = s.cc.height, sx = W / (GXc - 1), sy = H / (GYc - 1);
+    let max = 0; for (let k = 0; k < field.length; k++) if (field[k] > max) max = field[k];
+    ctx2.clearRect(0, 0, W, H);
+    ctx2.strokeStyle = tok('--ink'); ctx2.lineWidth = 2; ctx2.lineJoin = 'round';
+    const P = (gx, gy) => [gx * sx, (GYc - 1 - gy) * sy];
+    for (const lv of LEVELS) {
+      const L = lv * max;
+      ctx2.globalAlpha = 0.35 + 0.55 * lv;
+      ctx2.beginPath();
+      for (let j = 0; j < GYc - 1; j++) for (let i = 0; i < GXc - 1; i++) {
+        const d = field[j * GXc + i], c = field[j * GXc + i + 1], a = field[(j + 1) * GXc + i], b = field[(j + 1) * GXc + i + 1];
+        const idx = (a >= L ? 8 : 0) | (b >= L ? 4 : 0) | (c >= L ? 2 : 0) | (d >= L ? 1 : 0);
+        if (idx === 0 || idx === 15) continue;
+        const edge = e => e === 0 ? P(i + (L - a) / (b - a), j + 1)
+          : e === 1 ? P(i + 1, j + 1 - (L - b) / (c - b))
+          : e === 2 ? P(i + 1 - (L - c) / (d - c), j)
+          : P(i, j + (L - d) / (a - d));
+        for (const [e1, e2] of MS[idx]) { const p1 = edge(e1), p2 = edge(e2); ctx2.moveTo(p1[0], p1[1]); ctx2.lineTo(p2[0], p2[1]); }
+      }
+      ctx2.stroke();
+    }
+    // Crosses on the mass peaks
+    ctx2.globalAlpha = 1; ctx2.lineWidth = 2.5;
+    for (const x of peaks) {
+      const [px, py] = P((x + BC.XR) / CELL, ROW0);
+      ctx2.beginPath(); ctx2.moveTo(px - 10, py); ctx2.lineTo(px + 10, py); ctx2.moveTo(px, py - 10); ctx2.lineTo(px, py + 10); ctx2.stroke();
+    }
+    s.tex.needsUpdate = true;
+  }
+
+  const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function bcUpdate(t) {
+    const s = bc, M = s.M, fi = (t - BC.T0) / BC.FDT, f0 = Math.min(M.nF - 2, Math.max(0, Math.floor(fi))), u = fi - f0;
+    const lerp = arr => arr[f0] + (arr[f0 + 1] - arr[f0]) * u;
+    const cs = [lerp(M.C[0]), lerp(M.C[1])], gasCore = [lerp(M.core[0]), lerp(M.core[1])];
+    s.cs = cs;
+    const NG = M.NG, A = M.frames, o0 = f0 * NG, o1 = o0 + NG;
+    for (let i = 0; i < NG; i++) {
+      const x = A[o0 + i] + (A[o1 + i] - A[o0 + i]) * u;
+      s.gasX[i] = x; s.gas.pos[i * 3] = x; s.gas.pos[i * 3 + 1] = M.oy[i]; s.gas.pos[i * 3 + 2] = M.oz[i];
+    }
+    s.gas.geo.attributes.position.needsUpdate = true;
+    for (const [cl, pts] of [[M.dm, s.dm], [M.gal, s.gal]]) {
+      for (let i = 0; i < cl.n; i++) {
+        pts.pos[i * 3] = cs[cl.cid[i]] + cl.ox[i]; pts.pos[i * 3 + 1] = cl.oy[i]; pts.pos[i * 3 + 2] = cl.oz[i];
+      }
+      pts.geo.attributes.position.needsUpdate = true;
+    }
+    s.shock.pts.position.x = gasCore[1] + 120 + 0.25 * Math.max(0, t);
+    s.shock.mat.uniforms.uGain.value = smooth(-200, 0, t) * Math.exp(-Math.max(0, t - 250) / 250);
+
+    const withDM = bcMode === 'obs';
+    computeField(M, s.gasX, cs[0], cs[1], withDM);
+    const peaks = [peakNear(field, cs[0], 300), peakNear(field, cs[1], 300)];
+    drawContours(s, peaks.filter(isFinite));
+    // Compare the bullet's mass peak with its gas core (the bright X-ray "bullet").
+    const off = peaks[1] - gasCore[1], dist = Math.abs(off).toFixed(0) + ' kpc', side = off >= 0 ? 'ahead of' : 'behind';
+    const merged = Math.abs(peaks[1] - peaks[0]) < CELL;
+    if (withDM) {
+      el('bc-hud').innerHTML = !isFinite(off) || merged ? 'The two clusters’ mass peaks overlap'
+        : 'Bullet’s mass peak sits <b>' + dist + '</b> ' + side + ' its gas';
+    } else {
+      const top = peakNear(field, 0, Infinity), gap = Math.min(Math.abs(top - gasCore[0]), Math.abs(top - gasCore[1]));
+      el('bc-hud').innerHTML = 'Strongest mass peak would sit <b>' + gap.toFixed(0) + ' kpc</b> from the nearest gas core';
+    }
+  }
+
+  function syncTimeUI() {
+    const t = Math.round(bcT), out = el('bc-tv');
+    el('bc-time').value = t;
+    let txt = Math.abs(t) <= 4 ? 'Core passage' : (t < 0 ? '−' + (-t) + ' Myr before core passage' : '+' + t + ' Myr after core passage');
+    if (Math.abs(t - BC.NOW) <= 2) txt += ' · today';
+    out.textContent = txt;
+  }
+  function setBcPlaying(v) { bcPlaying = v; el('bc-pause').textContent = v ? 'Pause' : 'Play'; }
+  function applyLayers() {
+    if (!bc) return;
+    const obs = bcMode === 'obs';
+    bc.gal.pts.visible = el('ly-gal').checked;
+    bc.gas.pts.visible = bc.shock.pts.visible = el('ly-gas').checked;
+    el('ly-dm').disabled = !obs;
+    bc.dm.pts.visible = obs && el('ly-dm').checked;
+    bc.plane.visible = el('ly-mass').checked;
+  }
+  function setBcMode(m) {
+    bcMode = m;
+    el('bc-obs').setAttribute('aria-pressed', m === 'obs');
+    el('bc-nodm').setAttribute('aria-pressed', m === 'nodm');
+    applyLayers(); bcDirty = true;
+  }
+  el('bc-obs').addEventListener('click', () => setBcMode('obs'));
+  el('bc-nodm').addEventListener('click', () => setBcMode('nodm'));
+  ['ly-gal', 'ly-gas', 'ly-dm', 'ly-mass'].forEach(id => el(id).addEventListener('change', applyLayers));
+  el('bc-time').addEventListener('input', e => { bcT = +e.target.value; setBcPlaying(false); bcDirty = true; });
+  el('bc-play').addEventListener('click', () => { bcT = BC.T0; bcStopAtNow = true; setBcPlaying(true); bcDirty = true; });
+  el('bc-pause').addEventListener('click', () => {
+    if (bcPlaying) { setBcPlaying(false); return; }
+    if (bcT >= BC.T1 - 1) bcT = BC.T0;
+    bcStopAtNow = bcT < BC.NOW - 1;
+    setBcPlaying(true);
+  });
+  el('bc-now').addEventListener('click', () => { bcT = BC.NOW; setBcPlaying(false); bcDirty = true; });
+
+  let bcSize = { w: 1, h: 1 };
+  function bcLayout() {
+    if (!bc) return;
+    const w = bcStage.clientWidth, h = bcStage.clientHeight, dpr = Math.min(devicePixelRatio || 1, 2);
+    bc.r2.setPixelRatio(dpr); bc.r2.setSize(w, h, false);
+    bcSize = { w, h };
+    const scale = h * dpr / (2 * Math.tan(THREE.MathUtils.degToRad(bc.cam.fov / 2)));
+    bc.mats.forEach(m => { m.uniforms.uScale.value = scale; });
+  }
+  new ResizeObserver(bcLayout).observe(bcStage);
+
+  const projV = new THREE.Vector3();
+  function placeLabel(id, x, y) {
+    const node = el(id);
+    projV.set(x, y, 0).project(bc.cam);
+    const inView = projV.z < 1 && Math.abs(projV.x) < 0.95 && Math.abs(projV.y) < 0.95;
+    node.hidden = !inView;
+    if (inView) { node.style.left = ((projV.x + 1) / 2 * bcSize.w) + 'px'; node.style.top = ((1 - projV.y) / 2 * bcSize.h) + 'px'; }
+  }
+  function bcRender() {
+    const cam = bc.cam, aspect = bcSize.w / bcSize.h, d = bcView.dist * Math.max(1, 1.6 / aspect), ce = Math.cos(bcView.el);
+    cam.aspect = aspect; cam.updateProjectionMatrix();
+    cam.position.set(d * ce * Math.sin(bcView.az), d * Math.sin(bcView.el), d * ce * Math.cos(bcView.az));
+    cam.lookAt(0, 0, 0);
+    bc.r2.render(bc.scene, cam);
+    placeLabel('bc-l1', bc.cs[0], 620);
+    placeLabel('bc-l2', bc.cs[1], 360);
+  }
+  function bcTick(dt) {
+    if (!bc) return;
+    if (bcPlaying) {
+      const prev = bcT; bcT += BC.RATE * dt;
+      if (bcStopAtNow && prev < BC.NOW && bcT >= BC.NOW) { bcT = BC.NOW; setBcPlaying(false); }
+      if (bcT >= BC.T1) { bcT = BC.T1; setBcPlaying(false); }
+      bcDirty = true;
+    }
+    if (bcDirty) { bcUpdate(bcT); syncTimeUI(); bcDirty = false; }
+    if (bcVisible) bcRender();
+  }
+  function bootBullet() {
+    try {
+      const r = mulberry32(5);
+      bc = initBulletScene(buildBullet(r), r);
+      el('bc-wait').hidden = true;
+      bcLayout(); applyLayers(); bcDirty = true;
+    } catch (err) {
+      el('bc-wait').textContent = 'The collision model failed to load. Reload the page to try again.';
+      console.error(err);
+    }
+  }
+
+  // ---------- Boot ----------
+  layout();
+  setMode('compare');
+  setTimeout(bootBullet, 80);
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) setRunning(false);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawChart);
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
