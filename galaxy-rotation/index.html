@@ -161,6 +161,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     <button id="reset" class="btn" type="button">Restart</button>
     <label class="speed" for="speed">Speed <input id="speed" type="range" min="0" max="1" step="0.05" value="1"><output id="speedv" for="speed">1×</output></label>
     <label class="chk" for="halo"><input id="halo" type="checkbox" checked> Show halo</label>
+    <label class="chk" for="selfg"><input id="selfg" type="checkbox" checked> Stars pull on each other</label>
   </div>
 
   <p class="modeText" id="modeText"></p>
@@ -188,15 +189,16 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
           <li id="lg-esc" hidden><span class="sw esc"></span>Escape speed, Newton visible only</li>
         </ul>
       </div>
-      <canvas id="chart" role="img" aria-label="Orbital speed versus distance from the galaxy center. Visible matter with Newton's gravity peaks near 165 km/s at 6 kpc and falls to about 95 km/s at 30 kpc. Adding a dark matter halo keeps the curve flat near 200 km/s. MOND, with no extra mass, also stays flat, near 190 km/s."></canvas>
+      <canvas id="chart" role="img" aria-label="Orbital speed versus distance from the galaxy center. Visible matter with Newton's gravity peaks near 165 km/s at 6 kpc and falls to about 95 km/s at 30 kpc. Adding a dark matter halo keeps the curve roughly flat, between about 200 and 215 km/s. MOND, with no extra mass, also stays roughly flat, near 200 km/s."></canvas>
     </section>
     <section class="notes">
       <h2>Reading it</h2>
       <p>The <span class="vis">amber curve</span> drops past about 6 kpc because nearly all the visible mass sits inside that radius. Farther out, a star feels roughly the pull of a single central mass, so its speed falls off like 1/√r. Planets around the Sun behave the same way.</p>
-      <p>The <span class="dm">violet curve</span> stays near 200 km/s all the way out. With Newton’s law, that only works if the enclosed mass keeps growing with radius long after the starlight fades. That extra, unseen mass is the halo.</p>
-      <p>The <span class="mo">teal curve</span> uses only the visible mass, but changes the law. Once gravity’s pull drops below a₀ ≈ 1.2 × 10⁻¹⁰ m/s², MOND says it weakens more slowly than Newton predicts. In this galaxy that happens around 7 kpc. The halo’s height was chosen to fit. MOND’s curve wasn’t: it follows from the visible mass and a₀ alone, and lands near 190 km/s.</p>
+      <p>The <span class="dm">violet curve</span> stays between about 200 and 215 km/s all the way out. With Newton’s law, that only works if the enclosed mass keeps growing with radius long after the starlight fades. That extra, unseen mass is the halo.</p>
+      <p>The <span class="mo">teal curve</span> uses only the visible mass, but changes the law. Once gravity’s pull drops below a₀ ≈ 1.2 × 10⁻¹⁰ m/s², MOND says it weakens more slowly than Newton predicts. In this galaxy that happens around 7 kpc. The halo’s height was chosen to fit. MOND’s curve wasn’t: it follows from the visible mass and a₀ alone, and lands near 200 km/s.</p>
       <p>The five white stars started in a straight line. Each trail shows how far that star moved in the last 100 million years. The second one sits about where the Sun does, 8 kpc from the center.</p>
-      <p class="fine">Simplified model: stars are test particles moving in a fixed, spherically averaged mass distribution (Hernquist bulge, exponential disk, pseudo-isothermal halo). MOND uses the “simple” interpolating function on that same visible mass. Real galaxies also have gas, self-gravity and spiral density waves. The arms here wind up over time. Real arms don’t, because they are density waves, not fixed groups of stars. Rotation curves are where MOND does best. One of its harder tests, a collision between galaxy clusters, is below.</p>
+      <p>With <b>Stars pull on each other</b> turned on, each disk also feels its own gravity, and within a few hundred million years each one forms a central bar. The Newton-only disk can’t keep its outer stars in place: the bar pushes them outward, and some escape even though they started at balanced speeds. The halo’s extra mass keeps its disk calm. That was one of the earliest arguments for dark matter (Ostriker and Peebles, 1973). The MOND disk forms a bar too, and it spreads out more than the halo galaxy does.</p>
+      <p class="fine">Simplified model. The bulge and halo are smooth, fixed mass distributions (a Hernquist bulge and a pseudo-isothermal halo). With “Stars pull on each other” on, each of the 5,000 or so disk stars carries an equal share of the disk’s 50 billion solar masses and pulls on all the others. That pull is computed in the disk’s plane on a 128 × 128 grid, using an FFT (a particle-mesh solver). The disk starts with enough random motion that it doesn’t break up into clumps (Toomre Q = 1.5). With it off, every star moves in the fixed, averaged pull of the starting disk, and the arms wind up over time. Real arms don’t wind up, because they are density waves, not fixed groups of stars. MOND uses the “simple” interpolating function, applied to the combined pull of all visible matter. A full MOND calculation solves a modified field equation instead. Real galaxies also have gas, and a halo that responds to the disk. Rotation curves are where MOND does best. One of its harder tests, a collision between galaxy clusters, is below.</p>
     </section>
   </div>
 
@@ -266,44 +268,175 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
 
   // ---------- Units: kpc, km/s, solar masses. Time unit = 1 kpc / (km/s) = 0.9778 Gyr ----------
   const G = 4.30091e-6;
-  const MB = 1.0e10, AB = 0.6;     // Hernquist bulge
-  const MD = 5.0e10, RD = 3.2;     // exponential disk (spherically averaged)
-  const VH = 200, RC = 4.0;        // pseudo-isothermal halo: asymptotic speed, core radius
+  const MB = 1.0e10, AB = 0.6;     // Hernquist bulge (smooth and fixed)
+  const MD = 5.0e10, HD = 3.6;     // exponential disk, carried by the disk stars themselves
+  const VH = 200, RC = 4.0;        // pseudo-isothermal halo (smooth and fixed): asymptotic speed, core radius
   const HALO_K = VH * VH * RC / G;
   const A0 = 1.2e-10 / 3.2408e-14; // MOND a0 in (km/s)^2 / kpc  (~3703)
+  const Q_TOOMRE = 1.5;            // starting disk stability: enough random motion that the disk doesn't shatter into clumps
   const GYR_PER_UNIT = 0.9778;
 
-  function massVis(r) { const x = r / RD, s = r + AB; return MB * r * r / (s * s) + MD * (1 - (1 + x) * Math.exp(-x)); }
+  function gBulge(r) { const s = r + AB; return G * MB / (s * s); }
   function massHalo(r) { const h = r / RC; return HALO_K * (h - Math.atan(h)); }
-  // Returns g(r)/r, so acceleration = -accelOverR * position. model: 'newton' | 'halo' | 'mond'
-  function accelOverR(r, model) {
-    const x = r / RD, s = r + AB;
-    let M = MB * r * r / (s * s) + MD * (1 - (1 + x) * Math.exp(-x));
-    if (model === 'halo') { const h = r / RC; M += HALO_K * (h - Math.atan(h)); }
-    const k = G * M / (r * r * r);
-    if (model === 'mond') { const y = k * r / A0; return k * (0.5 + Math.sqrt(0.25 + 1 / y)); }
-    return k;
+  function gHalo(r) { return G * massHalo(r) / (r * r); }
+  function mondNu(gN) { return 0.5 + Math.sqrt(0.25 + A0 / gN); } // "simple" interpolating function
+
+  // Azimuthally averaged inward pull of the disk stars at the start, filled in by buildDiskProfile().
+  const PROF_DR = 0.05, PROF_N = 800;
+  const diskProf = new Float64Array(PROF_N + 1);
+  function gDisk(r) {
+    const f = r / PROF_DR;
+    if (f >= PROF_N) return G * MD / (r * r);
+    const i = Math.floor(f), u = f - i;
+    return diskProf[i] * (1 - u) + diskProf[i + 1] * u;
   }
-  function vcirc(r, model) { return r * Math.sqrt(accelOverR(r, model)); }
+  // Inward pull on a circular orbit of radius r. model: 'newton' | 'halo' | 'mond'
+  function gRadial(r, model) {
+    let g = gBulge(r) + gDisk(r);
+    if (model === 'halo') g += gHalo(r);
+    else if (model === 'mond') g *= mondNu(g);
+    return g;
+  }
+  function vcirc(r, model) { return Math.sqrt(r * gRadial(r, model)); }
 
   // Escape speed from visible matter only (Newton): v = sqrt(2 |Phi(r)|), Phi integrated inward on a log grid.
-  const escTable = (function () {
+  let escTable;
+  function buildEscTable() {
     const n = 600, r0 = 0.05, r1 = 5000, lr0 = Math.log(r0), lr1 = Math.log(r1);
     const rs = new Float64Array(n), phi = new Float64Array(n);
     for (let i = 0; i < n; i++) rs[i] = Math.exp(lr0 + (lr1 - lr0) * i / (n - 1));
-    phi[n - 1] = -G * massVis(r1) / r1;
+    phi[n - 1] = -G * (MB * r1 * r1 / ((r1 + AB) * (r1 + AB)) + MD) / r1;
     for (let i = n - 2; i >= 0; i--) {
       const a = rs[i], b = rs[i + 1];
-      const fa = G * massVis(a) / (a * a), fb = G * massVis(b) / (b * b);
+      const fa = gBulge(a) + gDisk(a), fb = gBulge(b) + gDisk(b);
       phi[i] = phi[i + 1] - 0.5 * (fa + fb) * (b - a);
     }
-    return { rs, phi, lr0, lr1, n };
-  })();
+    escTable = { rs, phi, lr0, lr1, n };
+  }
   function vEscVis(r) {
     const t = escTable, f = (Math.log(r) - t.lr0) / (t.lr1 - t.lr0) * (t.n - 1);
     const i = Math.max(0, Math.min(t.n - 2, Math.floor(f))), u = f - i;
     return Math.sqrt(-2 * (t.phi[i] * (1 - u) + t.phi[i + 1] * u));
   }
+
+  // ---------- Disk self-gravity: particle-mesh solver ----------
+  // Every disk star carries an equal share of the disk's mass, and they all pull on each other. Each update spreads
+  // their mass onto a grid (cloud-in-cell), gets the in-plane potential from one FFT convolution with a softened 1/r
+  // kernel (zero-padded to twice the size, so the grid has no periodic copies), and stars read their pull off the grid.
+  // Softening of about a disk thickness stands in for the disk not being razor thin. Off the grid, the disk acts as a point mass.
+  const PM = { M: 128, L: 40, EPS: 0.35, DT: 4e-3 };   // cells per side, half-width (kpc), softening (kpc), sim time between updates
+  const PM_M = PM.M, PM_P = 2 * PM.M, PM_H = 2 * PM.L / PM.M;
+  const fftRev = new Uint16Array(PM_P), fftCos = new Float64Array(PM_P / 2), fftSin = new Float64Array(PM_P / 2);
+  for (let i = 0, bits = Math.log2(PM_P); i < PM_P; i++) {
+    let r = 0; for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b);
+    fftRev[i] = r;
+  }
+  for (let k = 0; k < PM_P / 2; k++) { fftCos[k] = Math.cos(2 * Math.PI * k / PM_P); fftSin[k] = Math.sin(2 * Math.PI * k / PM_P); }
+  // In-place radix-2 FFT of the n = PM_P values re/im[o], re/im[o + st], ... (a grid row when st = 1, a column when st = PM_P).
+  function fftLine(re, im, o, st, inv) {
+    const n = PM_P, sgn = inv ? 1 : -1;
+    for (let i = 0; i < n; i++) {
+      const j = fftRev[i];
+      if (j > i) { const a = o + i * st, b = o + j * st; let t = re[a]; re[a] = re[b]; re[b] = t; t = im[a]; im[a] = im[b]; im[b] = t; }
+    }
+    for (let size = 2; size <= n; size <<= 1) {
+      const half = size >> 1, stride = n / size;
+      for (let s = 0; s < n; s += size) {
+        for (let k = 0; k < half; k++) {
+          const wr = fftCos[k * stride], wi = sgn * fftSin[k * stride], a = o + (s + k) * st, b = a + half * st;
+          const tr = wr * re[b] - wi * im[b], ti = wr * im[b] + wi * re[b];
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        }
+      }
+    }
+  }
+  function fftRows(re, im, nRows, inv) { for (let r = 0; r < nRows; r++) fftLine(re, im, r * PM_P, 1, inv); }
+  // Columns are copied out eight at a time (one cache line per grid row), transformed contiguously, and copied back.
+  const COLB = 8, colRe = new Float64Array(COLB * PM_P), colIm = new Float64Array(COLB * PM_P);
+  function fftCols(re, im, inv) {
+    for (let c0 = 0; c0 < PM_P; c0 += COLB) {
+      for (let i = 0; i < PM_P; i++) {
+        const o = i * PM_P + c0;
+        for (let b = 0; b < COLB; b++) { colRe[b * PM_P + i] = re[o + b]; colIm[b * PM_P + i] = im[o + b]; }
+      }
+      for (let b = 0; b < COLB; b++) fftLine(colRe, colIm, b * PM_P, 1, inv);
+      for (let i = 0; i < PM_P; i++) {
+        const o = i * PM_P + c0;
+        for (let b = 0; b < COLB; b++) { re[o + b] = colRe[b * PM_P + i]; im[o + b] = colIm[b * PM_P + i]; }
+      }
+    }
+  }
+  // Fourier transform of the softened kernel, with the inverse-FFT normalization folded in. The kernel is even, so it's real.
+  const greenHat = (function () {
+    const re = new Float64Array(PM_P * PM_P), im = new Float64Array(PM_P * PM_P);
+    for (let j = 0; j < PM_P; j++) {
+      const dy = (j <= PM_M ? j : PM_P - j) * PM_H;
+      for (let i = 0; i < PM_P; i++) {
+        const dx = (i <= PM_M ? i : PM_P - i) * PM_H;
+        re[j * PM_P + i] = -G / Math.sqrt(dx * dx + dy * dy + PM.EPS * PM.EPS);
+      }
+    }
+    fftRows(re, im, PM_P, false); fftCols(re, im, false);
+    for (let k = 0; k < re.length; k++) re[k] /= PM_P * PM_P;
+    return re;
+  })();
+  const pmRe = new Float64Array(PM_P * PM_P), pmIm = new Float64Array(PM_P * PM_P);
+  let starMass = 0; // set once the disk stars are counted
+
+  // Cloud-in-cell, at positions drifted ahead by tau: a grid that will be used for the next PM.DT is built from where the
+  // stars will be halfway through it, so the pattern's pull doesn't lag behind its rotation. Returns the mass on the grid.
+  function pmDeposit(g, dst, tau) {
+    let mass = 0;
+    for (let i = 0; i < N; i++) {
+      if (!base.disk[i] || !g.alive[i]) continue;
+      const fx = (g.x[i] + g.vx[i] * tau + PM.L) / PM_H - 0.5, fy = (g.y[i] + g.vy[i] * tau + PM.L) / PM_H - 0.5;
+      const ix = Math.floor(fx), iy = Math.floor(fy);
+      if (ix < 0 || iy < 0 || ix >= PM_M - 1 || iy >= PM_M - 1) continue;
+      const tx = fx - ix, ty = fy - iy, o = iy * PM_P + ix;
+      dst[o] += starMass * (1 - tx) * (1 - ty); dst[o + 1] += starMass * tx * (1 - ty);
+      dst[o + PM_P] += starMass * (1 - tx) * ty; dst[o + PM_P + 1] += starMass * tx * ty;
+      mass += starMass;
+    }
+    return mass;
+  }
+  function pmGradient(phi, g) { // pull = -grad(phi), central differences on the M x M corner of the padded grid
+    for (let j = 0; j < PM_M; j++) {
+      for (let i = 0; i < PM_M; i++) {
+        const o = j * PM_P + i, il = i > 0 ? o - 1 : o, ir = i < PM_M - 1 ? o + 1 : o;
+        const jd = j > 0 ? o - PM_P : o, ju = j < PM_M - 1 ? o + PM_P : o;
+        g.fx[j * PM_M + i] = -(phi[ir] - phi[il]) / ((ir - il) * PM_H);
+        g.fy[j * PM_M + i] = -(phi[ju] - phi[jd]) / ((ju - jd) / PM_P * PM_H);
+      }
+    }
+  }
+  // Solves two galaxies per complex transform: the kernel is real, so the real and imaginary parts never mix.
+  function pmSolve(list, tau) {
+    for (let p = 0; p < list.length; p += 2) {
+      const A = list[p], B = list[p + 1];
+      pmRe.fill(0); pmIm.fill(0);
+      A.gridMass = pmDeposit(A, pmRe, tau);
+      if (B) B.gridMass = pmDeposit(B, pmIm, tau);
+      fftRows(pmRe, pmIm, PM_M, false); fftCols(pmRe, pmIm, false);   // rows past M are all zero padding
+      for (let k = 0; k < greenHat.length; k++) { pmRe[k] *= greenHat[k]; pmIm[k] *= greenHat[k]; }
+      fftCols(pmRe, pmIm, true); fftRows(pmRe, pmIm, PM_M, true);     // only the first M rows are needed
+      pmGradient(pmRe, A);
+      if (B) pmGradient(pmIm, B);
+    }
+  }
+  let dax = 0, day = 0;
+  function diskAccel(g, x, y) { // pull of the disk stars at (x, y), left in dax, day
+    const fx = (x + PM.L) / PM_H - 0.5, fy = (y + PM.L) / PM_H - 0.5;
+    const ix = Math.floor(fx), iy = Math.floor(fy);
+    if (ix < 0 || iy < 0 || ix >= PM_M - 1 || iy >= PM_M - 1) {
+      const r2 = x * x + y * y, f = -G * g.gridMass / (r2 * Math.sqrt(r2));
+      dax = f * x; day = f * y; return;
+    }
+    const tx = fx - ix, ty = fy - iy, o = iy * PM_M + ix;
+    const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+    dax = g.fx[o] * w00 + g.fx[o + 1] * w10 + g.fx[o + PM_M] * w01 + g.fx[o + PM_M + 1] * w11;
+    day = g.fy[o] * w00 + g.fy[o + 1] * w10 + g.fy[o + PM_M] * w01 + g.fy[o + PM_M + 1] * w11;
+  }
+  function meshState() { return { fx: new Float64Array(PM_M * PM_M), fy: new Float64Array(PM_M * PM_M), gridMass: 0 }; }
 
   // ---------- Seeded random ----------
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -315,7 +448,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   const base = {
     x: new Float64Array(NT), y: new Float64Array(NT), z: new Float32Array(NT),
     col: new Float32Array(NT * 3), size: new Float32Array(NT),
-    jt: new Float64Array(NT), jr: new Float64Array(NT)
+    nt: new Float64Array(NT), nr: new Float64Array(NT), disk: new Uint8Array(NT)
   };
   const PITCH_COT = 1 / Math.tan(0.25);
   for (let i = 0; i < N; i++) {
@@ -327,7 +460,8 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
       const b = 0.55 + 0.45 * rnd();
       c = [1.0 * b, (0.74 + 0.12 * rnd()) * b, (0.46 + 0.14 * rnd()) * b]; s = 1.3 + rnd() * 1.1;
     } else { // disk
-      do { R = -3.6 * Math.log(rnd() * rnd()); } while (R > 34 || R < 0.7);
+      base.disk[i] = 1;
+      do { R = -HD * Math.log(rnd() * rnd()); } while (R > 34 || R < 0.7);
       const armed = rnd() < 0.62;
       if (armed) th = Math.log(R / 1.5) * PITCH_COT + (rnd() < 0.5 ? 0 : Math.PI) + gauss() * 0.26;
       else th = rnd() * Math.PI * 2;
@@ -338,13 +472,51 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     }
     base.x[i] = R * Math.cos(th); base.y[i] = R * Math.sin(th); base.z[i] = z;
     base.col.set(c, i * 3); base.size[i] = s;
-    base.jt[i] = 1 + gauss() * 0.03; base.jr[i] = gauss() * 0.025;
+    base.nt[i] = Math.max(-2, Math.min(2, gauss())); base.nr[i] = Math.max(-2, Math.min(2, gauss())); // capped so no star starts unbound
   }
   const TRACER_ANGLE = -0.5;
   for (let k = 0; k < T; k++) {
     const i = N + k;
     base.x[i] = TR[k] * Math.cos(TRACER_ANGLE); base.y[i] = TR[k] * Math.sin(TRACER_ANGLE); base.z[i] = 0;
-    base.col.set([1, 1, 1], i * 3); base.size[i] = 6.5; base.jt[i] = 1; base.jr[i] = 0;
+    base.col.set([1, 1, 1], i * 3); base.size[i] = 6.5;
+  }
+
+
+  // Each disk star's share of the disk mass, then the disk's actual azimuthally averaged pull at the start.
+  // Starting speeds, the chart and the escape speed all use that measured pull, so they match the simulation.
+  let nDisk = 0;
+  for (let i = 0; i < N; i++) nDisk += base.disk[i];
+  starMass = MD / nDisk;
+  (function buildDiskProfile() {
+    const probe = Object.assign(meshState(), { x: base.x, y: base.y, vx: new Float64Array(NT), vy: new Float64Array(NT), alive: new Uint8Array(NT).fill(1) });
+    pmSolve([probe], 0);
+    const NA = 128;
+    for (let j = 1; j <= PROF_N; j++) {
+      const r = j * PROF_DR; let sum = 0;
+      for (let a = 0; a < NA; a++) {
+        const c = Math.cos(2 * Math.PI * a / NA), s = Math.sin(2 * Math.PI * a / NA);
+        diskAccel(probe, r * c, r * s); sum -= dax * c + day * s;
+      }
+      diskProf[j] = sum / NA;
+    }
+  })();
+  buildEscTable();
+
+  // Average surface density of the disk stars (exponential, cut at 0.7 and 34 kpc), for the Toomre stability condition.
+  const SIGMA0 = (function () {
+    const a = 0.7 / HD, b = 34 / HD;
+    return MD / (2 * Math.PI * HD * HD * ((1 + a) * Math.exp(-a) - (1 + b) * Math.exp(-b)));
+  })();
+  // Starting motion of a disk star at radius r: mean rotation plus random scatter, set so the disk has Toomre Q_TOOMRE
+  // and a slower mean rotation where the scatter is large (asymmetric drift). Left in icVphi, icSigR, icSigPhi.
+  let icVphi = 0, icSigR = 0, icSigPhi = 0;
+  function diskIC(r, model) {
+    const vc = vcirc(r, model), om2 = vc * vc / (r * r), dr = 0.02;
+    const om2a = gRadial(r + dr, model) / (r + dr), om2b = gRadial(r - dr, model) / (r - dr);
+    const kappa = Math.sqrt(Math.max(r * (om2a - om2b) / (2 * dr) + 4 * om2, 1e-6));
+    const sig = Math.min(Q_TOOMRE * 3.36 * G * SIGMA0 * Math.exp(-r / HD) / kappa, 0.45 * vc);
+    const v2 = vc * vc + sig * sig * (1 - kappa * kappa / (4 * om2) - 2 * r / HD);
+    icVphi = Math.sqrt(Math.max(v2, 0.3 * vc * vc)); icSigR = sig; icSigPhi = sig * kappa / (2 * Math.sqrt(om2));
   }
 
   // ---------- Three.js setup ----------
@@ -387,12 +559,12 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   const TRAIL_K = 70, SAMPLE = 0.0015; // 70 samples x ~1.47 Myr = ~100 Myr of trail
   function makeGalaxy(trailHex) {
     const scene = new THREE.Scene();
-    const g = {
+    const g = Object.assign(meshState(), {
       scene, model: 'newton',
       x: new Float64Array(NT), y: new Float64Array(NT), vx: new Float64Array(NT), vy: new Float64Array(NT),
       ax: new Float64Array(NT), ay: new Float64Array(NT), alive: new Uint8Array(NT),
       pos: new Float32Array(NT * 3), trails: []
-    };
+    });
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(g.pos, 3));
     geo.setAttribute('acolor', new THREE.BufferAttribute(base.col, 3));
@@ -448,7 +620,8 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   GH.scene.add(haloGroup);
 
   // ---------- Simulation ----------
-  let mode = 'compare', running = true, simT = 0, sampleAcc = 0, speed = 1;
+  let mode = 'compare', running = true, simT = 0, sampleAcc = 0, meshAcc = 0, meshTurn = 0, speed = 1;
+  let selfGravity = true; // false: every star moves in the smooth, fixed pull of the starting disk instead
   const RATE = 0.1;     // sim time units per real second at 1x (~98 Myr per second)
   const DT_MAX = 4e-4;
 
@@ -478,10 +651,12 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     g.model = gravityModel;
     for (let i = 0; i < NT; i++) {
       const x = base.x[i], y = base.y[i], r = Math.hypot(x, y);
-      const v = vcirc(r, speedModel) * base.jt[i], vr = v * base.jr[i];
+      let v, vr;
+      if (base.disk[i] && selfGravity) { diskIC(r, speedModel); v = icVphi + icSigPhi * base.nt[i]; vr = icSigR * base.nr[i]; }
+      else { v = vcirc(r, speedModel); vr = v * 0.025 * base.nr[i]; v *= 1 + 0.03 * base.nt[i]; } // nearly circular orbits
       g.x[i] = x; g.y[i] = y;
       g.vx[i] = -v * y / r + vr * x / r; g.vy[i] = v * x / r + vr * y / r;
-      const k = accelOverR(r, gravityModel); g.ax[i] = -k * x; g.ay[i] = -k * y; g.alive[i] = 1;
+      g.alive[i] = 1;
     }
     for (let k = 0; k < T; k++) {
       const i = N + k, t = g.trails[k];
@@ -491,16 +666,28 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     writePositions(g);
   }
 
+  // Total pull on star i: the smooth bulge (and halo), plus the disk stars read off the grid (or the fixed starting disk).
+  // MOND boosts the combined Newtonian pull from all visible matter.
+  function accel(g, i) {
+    const x = g.x[i], y = g.y[i], r = Math.max(Math.sqrt(x * x + y * y), 0.05);
+    let k = gBulge(r) / r;
+    if (g.model === 'halo') k += gHalo(r) / r;
+    if (selfGravity) diskAccel(g, x, y);
+    else { k += gDisk(r) / r; dax = 0; day = 0; }
+    let ax = dax - k * x, ay = day - k * y;
+    if (g.model === 'mond') { const f = mondNu(Math.max(Math.sqrt(ax * ax + ay * ay), 1e-9)); ax *= f; ay *= f; }
+    g.ax[i] = ax; g.ay[i] = ay;
+  }
+  function allAccel(g) { for (let i = 0; i < NT; i++) if (g.alive[i]) accel(g, i); }
+
   function step(g, dt) { // kick-drift-kick leapfrog
-    const h = dt * 0.5, model = g.model, x = g.x, y = g.y, vx = g.vx, vy = g.vy, ax = g.ax, ay = g.ay, alive = g.alive;
+    const h = dt * 0.5, x = g.x, y = g.y, vx = g.vx, vy = g.vy, ax = g.ax, ay = g.ay, alive = g.alive;
     for (let i = 0; i < NT; i++) {
       if (!alive[i]) continue;
       vx[i] += ax[i] * h; vy[i] += ay[i] * h;
       x[i] += vx[i] * dt; y[i] += vy[i] * dt;
-      const r = Math.hypot(x[i], y[i]);
-      if (r > 600) { alive[i] = 0; continue; }
-      const k = accelOverR(Math.max(r, 0.05), model);
-      ax[i] = -k * x[i]; ay[i] = -k * y[i];
+      if (x[i] * x[i] + y[i] * y[i] > 360000) { alive[i] = 0; continue; } // past 600 kpc
+      accel(g, i);
       vx[i] += ax[i] * h; vy[i] += ay[i] * h;
     }
   }
@@ -509,8 +696,10 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     const n = Math.ceil(simDt / DT_MAX), h = simDt / n;
     for (let s = 0; s < n; s++) {
       for (const g of GALAXIES) step(g, h);
-      simT += h; sampleAcc += h;
+      simT += h; sampleAcc += h; meshAcc += h;
       if (sampleAcc >= SAMPLE) { sampleAcc -= SAMPLE; GALAXIES.forEach(pushTrails); }
+      // The disk's own pull changes slowly, so each galaxy's grid is refreshed every PM.DT, in two staggered batches.
+      if (selfGravity && meshAcc >= PM.DT / 2) { meshAcc -= PM.DT / 2; pmSolve(meshTurn ? [GM] : [GN, GH], PM.DT / 2); meshTurn ^= 1; }
     }
     for (const g of GALAXIES) {
       writePositions(g);
@@ -541,6 +730,9 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
     initGalaxy(GN, 'newton', observed ? 'halo' : 'newton');
     initGalaxy(GH, 'halo', 'halo');
     initGalaxy(GM, 'mond', observed ? 'halo' : 'mond');
+    meshAcc = 0; meshTurn = 0;
+    if (selfGravity) { pmSolve([GN, GH], PM.DT / 4); pmSolve([GM], PM.DT / 2); } // first refreshes come at PM.DT / 2 and PM.DT
+    GALAXIES.forEach(allAccel);
     updateHud();
   }
   let hudFrame = 0;
@@ -560,6 +752,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   el('reset').addEventListener('click', restart);
   el('speed').addEventListener('input', e => { speed = +e.target.value; el('speedv').textContent = speed + '×'; });
   el('halo').addEventListener('change', e => { haloGroup.visible = e.target.checked; });
+  el('selfg').addEventListener('change', e => { selfGravity = e.target.checked; restart(); });
 
   // Camera drag / zoom. The galaxy view is shared by all three panels.
   function attachOrbit(cv, v, def, dMin, dMax, elMin, elMax) {
@@ -625,7 +818,7 @@ h2 { font-family: var(--f-display); font-weight: 400; font-size: 24px; margin: 0
   function frame(now) {
     const dt = Math.min((now - last) / 1000, 0.05); last = now;
     if (running && galaxyVisible) {
-      advance(RATE * speed * dt);
+      advance(RATE * speed * (selfGravity ? Math.min(dt, 1 / 30) : dt)); // with self-gravity, a slow machine runs in slow motion instead of stalling
       haloGroup.rotation.y += 0.05 * speed * dt;
       if (++hudFrame % 6 === 0) updateHud();
     }
