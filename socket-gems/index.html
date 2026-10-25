@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Dregora Socket Gems</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Pixelify+Sans:wght@500;700&display=swap">
+<style>
+/* Layout: a reference page. Intro + how-to panels, then a filterable grid of gem cards drawn as
+   in-game item tooltips (dark in both themes, like the game), grouped by gem tier, then combos. */
+:root {
+  --bg: #e8eaee;
+  --surface: #f6f7f9;
+  --ink: #1b1e26;
+  --muted: #586070;
+  --line: #c9ced8;
+  --accent: #5b34e0;
+  --accent-ink: #ffffff;
+  --chip: #dde1e8;
+
+  /* The tooltip is an in-world object, so it keeps the game's look in both themes. */
+  --tt-bg: #100010;
+  --tt-edge-top: #5000ff;
+  --tt-edge-bottom: #28007f;
+  --tt-ink: #e8e8e8;
+  --tt-muted: #a8a8b4;
+  --tt-faint: #6f6f80;
+  --tt-slot: #9a9aff;
+  --tt-warn: #ff6b6b;
+
+  /* Minecraft text colours. The darkest four are lifted slightly so they read on the tooltip. */
+  --mc-red: #ff5555; --mc-dark-red: #d23030; --mc-gold: #ffaa00; --mc-yellow: #ffff55;
+  --mc-green: #55ff55; --mc-dark-green: #1fbf1f; --mc-aqua: #55ffff; --mc-blue: #7a7aff;
+  --mc-light-purple: #ff55ff; --mc-white: #ffffff; --mc-gray: #aaaaaa; --mc-dark-gray: #7a7a7a;
+
+  --tier-0: #aaaaaa; --tier-1: #ffffff; --tier-2: #ffff55; --tier-3: #55ffff;
+
+  --font-display: "Pixelify Sans", "Courier New", monospace;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: clamp(1.9rem, 4.5vw, 2.75rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101217; --surface: #171a21; --ink: #e5e7ec; --muted: #9aa1ae; --line: #2a2f3a;
+    --accent: #9d80ff; --accent-ink: #120a2a; --chip: #222631;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101217; --surface: #171a21; --ink: #e5e7ec; --muted: #9aa1ae; --line: #2a2f3a;
+  --accent: #9d80ff; --accent-ink: #120a2a; --chip: #222631;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.55;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--bg);
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; text-wrap: balance; margin: 0; line-height: 1.15; }
+p { margin: 0; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header */
+header.wrap { padding-block: 40px 8px; display: grid; gap: 14px; }
+.eyebrow { font-size: var(--step--1); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+h1 { font-size: var(--step-3); }
+.lede { max-width: 64ch; color: var(--muted); font-size: var(--step-1); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: var(--step--1); color: var(--muted); font-variant-numeric: tabular-nums; }
+.facts b { color: var(--ink); font-size: var(--step-0); }
+
+/* How it works */
+section { padding-block: 28px; }
+.section-head { display: grid; gap: 6px; margin-bottom: 16px; }
+.section-head h2 { font-size: var(--step-2); }
+.section-head p { color: var(--muted); max-width: 70ch; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.step h3 { font-size: var(--step-1); display: flex; gap: 10px; align-items: baseline; }
+.step h3 span { color: var(--accent); font-variant-numeric: tabular-nums; }
+.step p, .step li { color: var(--muted); }
+.step ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.step strong { color: var(--ink); }
+
+.socket-dot { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 2px; background: var(--tt-bg); vertical-align: -0.05em; margin-right: 4px; box-shadow: inset 0 0 0 2px var(--c, var(--tier-0)); }
+
+.fit-table { width: 100%; border-collapse: collapse; font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.fit-table th, .fit-table td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: center; }
+.fit-table th:first-child, .fit-table td:first-child { text-align: left; }
+.fit-table thead th { color: var(--muted); font-weight: 700; white-space: nowrap; }
+.fit-table abbr { text-decoration: none; }
+.fit-table .yes { color: var(--ink); font-weight: 700; }
+.fit-table .no { color: var(--line); }
+.table-scroll { overflow-x: auto; }
+
+.recipe { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; max-width: 190px; background: #8b8b8b; padding: 6px; border-radius: 3px; }
+.recipe div { aspect-ratio: 1; max-width: 100%; background: #6f6f6f; box-shadow: inset 2px 2px 0 #373737, inset -2px -2px 0 #ffffff55; display: grid; place-items: center; font-size: 0.7rem; line-height: 1.1; text-align: center; color: #fff; font-weight: 700; padding: 2px; text-shadow: 1px 1px 0 #3f3f3f; }
+.recipe .ruby { color: var(--mc-red); }
+.recipe .amethyst { color: var(--mc-light-purple); }
+.recipe .sapphire { color: #9fb4ff; }
+.recipe .planks { color: #f2cf8f; }
+
+.slot-legend { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: var(--step--1); }
+.slot-legend dt { font-family: var(--font-display); color: var(--ink); white-space: nowrap; }
+.slot-legend dd { margin: 0; color: var(--muted); }
+
+/* Filter bar */
+.filters {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+  padding-block: 12px;
+}
+.filters .wrap { display: grid; gap: 10px; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.filter-row > .label { font-size: var(--step--1); color: var(--muted); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-right: 4px; min-width: 4.5em; }
+.search { flex: 1 1 220px; min-width: 0; font: inherit; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.count { font-size: var(--step--1); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip { font: inherit; font-size: var(--step--1); padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+/* Tier groups + tooltip cards */
+.tier-group { display: grid; gap: 14px; padding-block: 22px 6px; }
+.tier-head { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.tier-head h2 { font-size: var(--step-2); display: flex; align-items: center; gap: 10px; }
+.tier-head h2 .socket-dot { width: 0.9em; height: 0.9em; }
+.tier-head p { color: var(--muted); font-size: var(--step--1); max-width: 70ch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+
+.tt {
+  min-width: 0;
+  color: var(--tt-ink);
+  background:
+    linear-gradient(var(--tt-bg), var(--tt-bg)) padding-box,
+    linear-gradient(180deg, var(--tt-edge-top), var(--tt-edge-bottom)) border-box;
+  border: 2px solid transparent;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--tt-bg);
+  padding: 12px 14px 14px;
+  display: grid; gap: 8px; align-content: start;
+}
+.tt-title { font-family: var(--font-display); font-weight: 500; font-size: var(--step-1); line-height: 1.2; color: var(--c); text-shadow: 2px 2px 0 var(--cs, #000); overflow-wrap: anywhere; }
+.tt-meta { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: var(--step--1); color: var(--tt-muted); }
+.tt-meta .item { color: var(--tt-ink); font-weight: 700; }
+.tt-meta .src { color: var(--tt-faint); }
+.tt-meta .tier { margin-left: auto; font-family: var(--font-display); color: var(--c); }
+.fx { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.fx li { display: grid; gap: 1px; transition: opacity 0.15s; }
+.fx li.off { opacity: 0.32; }
+.fx .slot { font-family: var(--font-display); font-size: var(--step--1); color: var(--tt-slot); }
+.fx .text { font-size: var(--step-0); line-height: 1.4; }
+.flag { justify-self: start; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tt-warn); border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; margin-top: 3px; }
+
+.empty { display: grid; gap: 10px; justify-items: start; padding: 28px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); margin-top: 22px; }
+.empty button { font: inherit; padding: 6px 14px; border-radius: 4px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+
+/* Combos */
+.combo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 14px; }
+.needs { display: flex; flex-wrap: wrap; gap: 6px; }
+.needs span { font-family: var(--font-display); font-size: var(--step--1); padding: 2px 8px; border: 1px solid #ffffff2a; border-radius: 3px; color: var(--c); }
+.combo-note { font-size: var(--step--1); color: var(--tt-muted); }
+
+footer.wrap { padding-block: 24px 48px; color: var(--muted); font-size: var(--step--1); display: grid; gap: 6px; max-width: 1180px; }
+footer p { max-width: 80ch; }
+
+@media (prefers-reduced-motion: reduce) { .fx li { transition: none; } }
+</style>
+
+<header class="wrap">
+  <div class="eyebrow">Dregora Parasited · Socketed</div>
+  <h1>Dregora Socket Gems</h1>
+  <p class="lede">Every item you can put in a socket on this server, what it does, and which piece of gear it has to be in to work.</p>
+  <div class="facts">
+    <span><b id="fact-gems">58</b> socketable items</span>
+    <span><b>2</b> gem combos</span>
+    <span><b>5</b> sockets max per item</span>
+    <span><a href="#combos">Jump to combos</a></span>
+  </div>
+</header>
+
+<section class="wrap" aria-labelledby="how">
+  <div class="section-head">
+    <h2 id="how">How socketing works</h2>
+    <p>Gems go into sockets on weapons, tools and armor. Each gem has a tier, and each socket has a tier, and the gem only works in the gear slots shown on its card.</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <h3><span>1</span>Find gear with sockets</h3>
+      <ul>
+        <li>About <strong>40%</strong> of gear from chests and mob drops tries to roll sockets. Materials with high enchantability (gold, diamond) roll more.</li>
+        <li>Loot rolls up to <strong>5</strong> sockets on armor, swords and shields, <strong>3</strong> on axes, <strong>1</strong> on bows, pickaxes and shovels.</li>
+        <li>Infernal mobs, Doomlike, Roguelike and Recurrent Complex structures can all give socketed gear.</li>
+        <li>High-level Lycanites bosses drop <strong>3 to 9</strong> loose sockets: Amalgalich at level 500+, Asmodeus at 1000+, Rahovart at 2000+.</li>
+        <li>To add a loose socket to gear, put both in a crafting grid. No item can go over 5.</li>
+      </ul>
+    </div>
+    <div class="step">
+      <h3><span>2</span>Match the socket tier</h3>
+      <p>A socket takes gems of its own tier or lower. Loot sockets roll Common 30%, Uncommon 50%, Rare 20%.</p>
+      <div class="table-scroll">
+        <table class="fit-table">
+          <thead><tr><th>Socket ↓ Gem →</th><th><abbr title="Common">Com</abbr></th><th><abbr title="Uncommon">Unc</abbr></th><th>Rare</th><th>Epic</th></tr></thead>
+          <tbody>
+            <tr><td><span class="socket-dot" style="--c:var(--tier-0)"></span>Common</td><td class="yes">✓</td><td class="no">–</td><td class="no">–</td><td class="no">–</td></tr>
+            <tr><td><span class="socket-dot" style="--c:var(--tier-1)"></span>Uncommon</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">–</td><td class="no">–</td></tr>
+            <tr><td><span class="socket-dot" style="--c:var(--tier-2)"></span>Rare</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">–</td></tr>
+            <tr><td><span class="socket-dot" style="--c:var(--mc-gold)"></span>Generic</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Epic gems need a <strong>Generic</strong> socket. Loot gear never rolls one, and nothing in this pack's loot or recipes gives the Generic Socket item.</p>
+    </div>
+    <div class="step">
+      <h3><span>3</span>Socket gems at the bench</h3>
+      <p>Craft a <strong>Socketing Bench</strong>, then place gems into the gear's sockets. Taking a gem back out returns it to you.</p>
+      <div class="recipe" role="img" aria-label="Socketing Bench recipe: top row empty, ruby, empty. Middle row amethyst, any wooden planks, sapphire. Bottom row planks, empty, planks.">
+        <div></div><div class="ruby">Ruby</div><div></div>
+        <div class="amethyst">Amethyst</div><div class="planks">Planks</div><div class="sapphire">Sapphire</div>
+        <div class="planks">Planks</div><div></div><div class="planks">Planks</div>
+      </div>
+    </div>
+    <div class="step">
+      <h3><span>4</span>Wear it in the right slot</h3>
+      <p>Each effect has a slot tag, the same one the in-game tooltip shows (hold Shift). It only works when the socketed item is there.</p>
+      <dl class="slot-legend">
+        <dt>In Hand</dt><dd>A held weapon, tool or bow</dd>
+        <dt>In Offhand</dt><dd>Held in the off hand, e.g. a shield</dd>
+        <dt>On Body</dt><dd>Any armor piece</dd>
+        <dt>On Head</dt><dd>Helmet only (likewise Chest, Legs, Feet)</dd>
+        <dt>Anywhere</dt><dd>Works in any socketed gear you wear or hold</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<div class="filters" role="search">
+  <div class="wrap">
+    <div class="filter-row">
+      <input class="search" id="q" type="search" placeholder="Search gems or effects, e.g. fire, dodge, poison" aria-label="Search gems and effects" autocomplete="off">
+      <span class="count" id="count" aria-live="polite"></span>
+    </div>
+    <div class="filter-row" id="tier-chips" aria-label="Filter by gem tier">
+      <span class="label">Tier</span>
+    </div>
+    <div class="filter-row" id="gear-chips" aria-label="Filter by gear">
+      <span class="label">Gear</span>
+    </div>
+  </div>
+</div>
+
+<main class="wrap" id="gems"></main>
+
+<section class="wrap" id="combos" aria-labelledby="combos-h">
+  <div class="section-head">
+    <h2 id="combos-h">Gem combos</h2>
+    <p>Put every gem of a combo into sockets on the same item, in any order. The combo replaces those gems' own effects with the effect below.</p>
+  </div>
+  <div class="combo-grid" id="combo-grid"></div>
+</section>
+
+<footer class="wrap">
+  <p>Numbers come straight from the server's Socketed config files (Dregora Parasited, Oct 21 2026 #2 release). Card titles are the names the game shows for each socketed gem. Durations are in seconds, and "constant" means the effect keeps refreshing while you wear the gear.</p>
+</footer>
+
+<script>
+const MC = {
+  RED: 'var(--mc-red)', DARK_RED: 'var(--mc-dark-red)', GOLD: 'var(--mc-gold)', YELLOW: 'var(--mc-yellow)',
+  GREEN: 'var(--mc-green)', DARK_GREEN: 'var(--mc-dark-green)', AQUA: 'var(--mc-aqua)', BLUE: 'var(--mc-blue)',
+  LIGHT_PURPLE: 'var(--mc-light-purple)', WHITE: 'var(--mc-white)', GRAY: 'var(--mc-gray)', DARK_GRAY: 'var(--mc-dark-gray)'
+};
+// Minecraft draws text shadow at a quarter of the text colour.
+const SHADOW = {
+  RED: '#3f1515', DARK_RED: '#2a0000', GOLD: '#3f2a00', YELLOW: '#3f3f15', GREEN: '#153f15', DARK_GREEN: '#002a00',
+  AQUA: '#153f3f', BLUE: '#15153f', LIGHT_PURPLE: '#3f153f', WHITE: '#3f3f3f', GRAY: '#2a2a2a', DARK_GRAY: '#151515'
+};
+
+const TIERS = [
+  { name: 'Common', color: 'var(--tier-0)', note: 'Fits any socket.' },
+  { name: 'Uncommon', color: 'var(--tier-1)', note: 'Fits Uncommon and Rare sockets.' },
+  { name: 'Rare', color: 'var(--tier-2)', note: 'Fits Rare sockets only.' },
+  { name: 'Epic', color: 'var(--tier-3)', note: 'Fits only a Generic socket, which loot gear never rolls.' }
+];
+
+const SLOTS = {
+  hand: 'In Hand', off: 'In Offhand', body: 'On Body', head: 'On Head',
+  chest: 'On Chest', legs: 'On Legs', feet: 'On Feet', all: 'Anywhere'
+};
+
+// Which effect slots count for each piece of gear.
+const GEAR = [
+  { id: 'any', label: 'Any gear', slots: null },
+  { id: 'weapon', label: 'Weapon / tool', slots: ['hand', 'all'] },
+  { id: 'helmet', label: 'Helmet', slots: ['head', 'body', 'all'] },
+  { id: 'chest', label: 'Chestplate', slots: ['chest', 'body', 'all'] },
+  { id: 'legs', label: 'Leggings', slots: ['legs', 'body', 'all'] },
+  { id: 'boots', label: 'Boots', slots: ['feet', 'body', 'all'] },
+  { id: 'shield', label: 'Shield / off hand', slots: ['off', 'hand', 'all'] }
+];
+
+const FLAGS = { self: 'Also hits you', terrain: 'Breaks blocks' };
+
+// t = gem tier (0 Common .. 3 Epic). fx = [slot, text, flag?]
+const GEMS = [
+  // Common
+  { item: 'Ruby', src: 'Ice and Fire', name: 'Ruby Gem', c: 'RED', t: 0, fx: [['hand', '+1 fire damage per hit'], ['body', '+10% fire resistance']] },
+  { item: 'Sapphire', src: 'Ice and Fire', name: 'Sapphire Gem', c: 'BLUE', t: 0, fx: [['hand', '+1 cold damage per hit'], ['body', '+10% cold resistance']] },
+  { item: 'Amethyst', src: 'Ice and Fire', name: 'Amethyst Gem', c: 'LIGHT_PURPLE', t: 0, fx: [['hand', '+1 lightning damage per hit'], ['body', '+10% lightning resistance']] },
+  { item: 'Emerald', name: 'Emerald Gem', c: 'GREEN', t: 0, fx: [['hand', '+1 poison damage per hit'], ['body', '+10% poison resistance']] },
+  { item: 'Diamond', name: 'Diamond Gem', c: 'WHITE', t: 0, fx: [['hand', '+1 attack damage'], ['body', '+1 armor toughness']] },
+  { item: 'Block of Iron', name: 'Iron plated', c: 'GRAY', t: 0, fx: [['body', '+1 armor']] },
+  { item: 'Dead Bush', name: 'Thorny', c: 'GOLD', t: 0, fx: [['hand', '+0.5 attack damage']] },
+  { item: 'Block of Coal', name: 'Ignite', c: 'DARK_GRAY', t: 0, fx: [['hand', '20% chance on hit to set the target on fire for 3 s']] },
+  { item: 'Gunpowder', name: 'Explosion!', c: 'RED', t: 0, fx: [['hand', '10% chance on hit to cause a small explosion (strength 1, no block damage)']] },
+  { item: 'Heat Gem', src: 'Forgotten Items', name: 'Heat Gem', c: 'DARK_RED', t: 0, fx: [['hand', 'Every hit sets the target and mobs within 2 blocks on fire for 6 s'], ['feet', 'Dodging sets mobs within 4 blocks on fire for 3 s and gives them Blazing Trail for 3 s']] },
+  { item: 'Water Gem', src: 'Forgotten Items', name: 'Water Gem', c: 'BLUE', t: 0, fx: [['legs', '+100% swim speed']] },
+  { item: 'Sugar', name: 'Get out of dodge!', c: 'WHITE', t: 0, fx: [['feet', 'Dodging gives you Speed III for 10 s']] },
+  { item: 'Blaze Powder', name: 'Farting in your general direction', c: 'RED', t: 0, fx: [['feet', 'Dodging makes mobs within 3 blocks explode'], ['feet', 'Dodges push you 1.5× farther']] },
+  { item: 'Poisonous Potato', name: 'Purple drank', c: 'DARK_GREEN', t: 0, fx: [['head', 'Constant Poison I on you and on mobs within 4 blocks', 'self']] },
+  { item: 'Spider Eye', name: 'Feeling weak', c: 'DARK_RED', t: 0, fx: [['chest', 'Constant Weakness I on you and on mobs within 4 blocks', 'self']] },
+  { item: 'Slimeball', name: 'Sticky situation', c: 'GREEN', t: 0, fx: [['legs', 'Constant Slowness I on you and on mobs within 4 blocks', 'self']] },
+
+  // Uncommon
+  { item: 'Fine Ruby', name: 'Ruby Gem', c: 'RED', t: 1, fx: [['hand', '+2 fire damage per hit'], ['body', '+20% fire resistance']] },
+  { item: 'Fine Sapphire', name: 'Sapphire Gem', c: 'BLUE', t: 1, fx: [['hand', '+2 cold damage per hit'], ['body', '+20% cold resistance']] },
+  { item: 'Fine Amethyst', name: 'Amethyst Gem', c: 'LIGHT_PURPLE', t: 1, fx: [['hand', '+2 lightning damage per hit'], ['body', '+20% lightning resistance']] },
+  { item: 'Fine Emerald', name: 'Emerald Gem', c: 'GREEN', t: 1, fx: [['hand', '+2 poison damage per hit'], ['body', '+20% poison resistance']] },
+  { item: 'Fine Diamond', name: 'Diamond Gem', c: 'WHITE', t: 1, fx: [['hand', '+2 attack damage'], ['body', '+2 armor toughness']] },
+  { item: 'Blaze Rod', name: 'Ignite', c: 'DARK_RED', t: 1, fx: [['hand', '50% chance on hit to set the target on fire for 6 s']] },
+  { item: 'Cobweb', name: 'Slow them!', c: 'WHITE', t: 1, fx: [['legs', 'When you are hit, 20% chance to give mobs within 6 blocks Slowness I for 4 s']] },
+  { item: 'Flint', name: 'Pew pew', c: 'GRAY', t: 1, fx: [['hand', '+1 level of Power (for bows)']] },
+  { item: 'Glowstone Dust', name: '+4 Light Radius', c: 'YELLOW', t: 1, fx: [['head', 'Mobs within 4 blocks glow, visible through walls']] },
+  { item: 'Glowstone', name: '+12 Light Radius', c: 'YELLOW', t: 1, fx: [['head', 'Mobs within 12 blocks glow, visible through walls']] },
+  { item: 'Golden Carrot', name: 'Carrots are good for your eyes!', c: 'YELLOW', t: 1, fx: [['head', 'Night Vision while you are below Y 60 in the dark (light level under 7)']] },
+  { item: 'Piston', name: 'Knockback!', c: 'AQUA', t: 1, fx: [['hand', 'Hits knock the target back (strength 2)']] },
+  { item: 'Sticky Piston', name: 'Pull!', c: 'GREEN', t: 1, fx: [['hand', 'Hits pull the target toward you (strength 2)']] },
+  { item: 'Block of Redstone', name: 'Hasty', c: 'RED', t: 1, fx: [['chest', 'Constant Haste I']] },
+  { item: 'Shock Gem', src: 'Forgotten Items', name: 'Shock Gem', c: 'GOLD', t: 1, fx: [['feet', 'Dodging sets off two explosions: a small one that breaks blocks (strength 1) and a bigger one that does not (strength 3)', 'terrain']] },
+  { item: 'Wind Gem', src: 'Forgotten Items', name: 'Wind Gem', c: 'AQUA', t: 1, fx: [['feet', 'Dodges push you 4× farther'], ['feet', 'Dodging gives you Slow Falling for 3 s'], ['hand', 'Hits knock the target far back (strength 4) and lift it with Levitation for 0.5 s']] },
+
+  // Rare
+  { item: 'Perfect Ruby', name: 'Ruby Gem', c: 'RED', t: 2, fx: [['hand', '+3 fire damage per hit'], ['body', '+30% fire resistance']] },
+  { item: 'Perfect Sapphire', name: 'Sapphire Gem', c: 'BLUE', t: 2, fx: [['hand', '+3 cold damage per hit'], ['body', '+30% cold resistance']] },
+  { item: 'Perfect Amethyst', name: 'Amethyst Gem', c: 'LIGHT_PURPLE', t: 2, fx: [['hand', '+3 lightning damage per hit'], ['body', '+30% lightning resistance']] },
+  { item: 'Perfect Emerald', name: 'Emerald Gem', c: 'GREEN', t: 2, fx: [['hand', '+3 poison damage per hit'], ['body', '+30% poison resistance']] },
+  { item: 'Perfect Diamond', name: 'Diamond Gem', c: 'WHITE', t: 2, fx: [['hand', '+3 attack damage'], ['body', '+3 armor toughness']] },
+  { item: 'Heart of Diamond', src: 'Quark', name: 'Reinforced', c: 'AQUA', t: 2, fx: [['body', '+10% durability']] },
+  { item: 'Anvil', name: 'Anvil to the face', c: 'GRAY', t: 2, fx: [['chest', 'When you are hit, the attacker is knocked far back (strength 4)']] },
+  { item: 'Ender Gem', src: 'Forgotten Items', name: 'Ender Gem', c: 'DARK_RED', t: 2, fx: [['feet', 'Dodging teleports mobs within 4 blocks to random spots']] },
+  { item: 'Golden Apple', name: "It's a Gold Apple", c: 'YELLOW', t: 2, fx: [['all', 'Every 10 s, 20% chance of Absorption I for 10 s']] },
+  { item: 'Pufferfish', name: 'Poison them!', c: 'GREEN', t: 2, fx: [['body', 'When you are hit at 50% health or less, mobs within 4 blocks get Poison I for 5 s']] },
+  { item: 'Sea Lantern', name: 'Blind them!', c: 'AQUA', t: 2, fx: [['body', 'When you are hit at 50% health or less, mobs within 4 blocks get Blindness for 5 s']] },
+  { item: 'Wither Skeleton Skull', name: 'Wither them!', c: 'DARK_GRAY', t: 2, fx: [['body', 'When you are hit at 50% health or less, mobs within 4 blocks get Wither I for 5 s']] },
+  { item: 'Nether Quartz', name: 'XP Farm', c: 'WHITE', t: 2, fx: [['hand', '+10% experience']] },
+  { item: "Rabbit's Foot", name: 'Uppies', c: 'YELLOW', t: 2, fx: [['feet', '+1 Luck'], ['feet', 'Constant Jump Boost I']] },
+  { item: 'Sponge', name: 'Menger Sponge', c: 'AQUA', t: 2, fx: [['head', 'Constant Water Breathing']] },
+  { item: 'TNT', name: 'Explosions!', c: 'RED', t: 2, fx: [['hand', '20% chance on hit to cause an explosion (strength 2)', 'terrain']] },
+  { item: 'Clownfish', name: "Don't bonk your head", c: 'AQUA', t: 2, fx: [['feet', '+30% swim speed']] },
+
+  // Epic
+  { item: 'Nether Star', name: 'Wither them more!', c: 'WHITE', t: 3, fx: [['body', 'When you are hit, the attacker and mobs within 3 blocks get Wither I for 10 s'], ['hand', '+5 attack damage']] },
+  { item: 'Ghast Tear', name: 'Pretty Healthy for a Ghast', c: 'WHITE', t: 3, fx: [['chest', 'Constant Regeneration I and Health Boost I']] },
+  { item: 'Enchanted Golden Apple', name: 'They called him Notch', c: 'GOLD', t: 3, fx: [['all', 'Absorption II for 10 s, every 20 s'], ['all', 'Fire Resistance for 20 s when you are at 25% health or less (checked every 20 s)']] },
+  { item: 'Totem of Undying', name: "Just don't get hit", c: 'YELLOW', t: 3, fx: [['off', '20% chance to survive a killing blow, like a Totem of Undying that is never used up']] },
+  { item: 'End Crystal', name: 'Crystal PvP', c: 'LIGHT_PURPLE', t: 3, fx: [['hand', '5% chance on hit to drop a non-boss target to half a heart']] },
+  { item: 'Beacon', name: 'Blinding Lights', c: 'WHITE', t: 3, fx: [['head', 'In full light (level 15), mobs within 32 blocks get Glowing and Invisibility'], ['head', 'In the dark (light level 7 or less), you turn invisible']] },
+  { item: 'Zombie Head', name: 'Bad Zombie!', c: 'DARK_GREEN', t: 3, fx: [['body', 'Zombies stop targeting you']] },
+  { item: 'Skeleton Skull', name: 'Bad Skeleton!', c: 'WHITE', t: 3, fx: [['body', 'Skeletons stop targeting you']] },
+  { item: 'Creeper Head', name: 'Bad Creeper!', c: 'GREEN', t: 3, fx: [['body', 'Creepers stop targeting you']] }
+];
+
+const COMBOS = [
+  {
+    name: 'Common gaming', c: 'DARK_GREEN',
+    needs: [['Poisonous Potato', 'DARK_GREEN'], ['Spider Eye', 'DARK_RED'], ['Slimeball', 'GREEN'], ['Sugar', 'WHITE']],
+    slot: 'all',
+    text: 'When you are hit, mobs within 4 blocks get Poison I, Weakness I and Slowness I for 2 s, and you get Speed I for 2 s.',
+    note: 'All four are Common, so any 4-socket item works. Combining them also stops the potato, eye and slimeball from debuffing you.'
+  },
+  {
+    name: 'Rare gaming', c: 'GREEN',
+    needs: [['Sea Lantern', 'AQUA'], ['Wither Skeleton Skull', 'DARK_GRAY'], ['Pufferfish', 'GREEN']],
+    slot: 'body',
+    text: 'When you are hit at 75% health or less, mobs within 4 blocks get Poison II, Wither II and Blindness for 10 s.',
+    note: 'Needs three Rare sockets on one armor piece. Stronger, longer and earlier than the three gems on their own.'
+  }
+];
+
+const state = { q: '', tier: 'all', gear: 'any' };
+
+function el(tag, attrs, children) {
+  const n = document.createElement(tag);
+  for (const k in attrs || {}) {
+    if (k === 'style') n.setAttribute('style', attrs[k]);
+    else if (k === 'text') n.textContent = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  }
+  (children || []).forEach(c => c && n.appendChild(c));
+  return n;
+}
+
+function colorStyle(c) { return `--c:${MC[c]};--cs:${SHADOW[c]}`; }
+
+function gemCard(g) {
+  const tier = TIERS[g.t];
+  const meta = el('div', { class: 'tt-meta' }, [
+    el('span', { text: 'Socket:' }),
+    el('span', { class: 'item', text: g.item }),
+    g.src ? el('span', { class: 'src', text: g.src }) : null,
+    el('span', { class: 'tier', style: `--c:${tier.color}`, text: `(${tier.name})` })
+  ]);
+  const list = el('ul', { class: 'fx' });
+  g.fx.forEach(([slot, text, flag]) => {
+    const li = el('li', { 'data-slot': slot }, [
+      el('span', { class: 'slot', text: SLOTS[slot] }),
+      el('span', { class: 'text', text }),
+      flag ? el('span', { class: 'flag', text: FLAGS[flag] }) : null
+    ]);
+    list.appendChild(li);
+  });
+  const card = el('article', { class: 'tt', style: colorStyle(g.c) }, [
+    el('h3', { class: 'tt-title', text: g.name }),
+    meta,
+    list
+  ]);
+  g.node = card;
+  g.haystack = [g.item, g.name, g.src || '', tier.name, ...g.fx.map(f => f[1] + ' ' + SLOTS[f[0]])].join(' ').toLowerCase();
+  return card;
+}
+
+function buildGems() {
+  const main = document.getElementById('gems');
+  TIERS.forEach((tier, i) => {
+    const gems = GEMS.filter(g => g.t === i);
+    const grid = el('div', { class: 'grid' }, gems.map(gemCard));
+    const group = el('section', { class: 'tier-group', 'aria-label': `${tier.name} gems`, 'data-tier': String(i) }, [
+      el('div', { class: 'tier-head' }, [
+        el('h2', {}, [el('span', { class: 'socket-dot', style: `--c:${tier.color}` }), document.createTextNode(`${tier.name} gems`)]),
+        el('p', { text: `${gems.length} items. ${tier.note}` })
+      ]),
+      grid
+    ]);
+    tier.node = group;
+    main.appendChild(group);
+  });
+  const empty = el('div', { class: 'empty', hidden: '' }, [
+    el('p', { text: 'No gems match these filters.' }),
+    el('button', { type: 'button', id: 'clear', text: 'Clear filters' })
+  ]);
+  main.appendChild(empty);
+  document.getElementById('clear').addEventListener('click', () => {
+    state.q = ''; state.tier = 'all'; state.gear = 'any';
+    document.getElementById('q').value = '';
+    syncChips(); apply();
+  });
+  document.getElementById('fact-gems').textContent = GEMS.length;
+}
+
+function buildCombos() {
+  const grid = document.getElementById('combo-grid');
+  COMBOS.forEach(cb => {
+    grid.appendChild(el('article', { class: 'tt', style: colorStyle(cb.c) }, [
+      el('h3', { class: 'tt-title', text: cb.name }),
+      el('div', { class: 'needs' }, cb.needs.map(([n, c]) => el('span', { style: `--c:${MC[c]}`, text: n }))),
+      el('ul', { class: 'fx' }, [el('li', {}, [
+        el('span', { class: 'slot', text: SLOTS[cb.slot] }),
+        el('span', { class: 'text', text: cb.text })
+      ])]),
+      el('p', { class: 'combo-note', text: cb.note })
+    ]));
+  });
+}
+
+function chipRow(containerId, options, key) {
+  const row = document.getElementById(containerId);
+  options.forEach(o => {
+    const b = el('button', { type: 'button', class: 'chip', 'data-key': key, 'data-value': o.id, 'aria-pressed': 'false', text: o.label });
+    b.addEventListener('click', () => { state[key] = o.id; syncChips(); apply(); });
+    row.appendChild(b);
+  });
+}
+
+function syncChips() {
+  document.querySelectorAll('.chip').forEach(b => {
+    b.setAttribute('aria-pressed', String(state[b.dataset.key] === b.dataset.value));
+  });
+}
+
+function apply() {
+  const gear = GEAR.find(g => g.id === state.gear);
+  const words = state.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  let shown = 0;
+  GEMS.forEach(g => {
+    let ok = state.tier === 'all' || String(g.t) === state.tier;
+    if (ok && words.length) ok = words.every(w => g.haystack.includes(w));
+    let anyFits = false;
+    g.node.querySelectorAll('.fx li').forEach(li => {
+      const fits = !gear.slots || gear.slots.includes(li.dataset.slot);
+      li.classList.toggle('off', !fits);
+      if (fits) anyFits = true;
+    });
+    ok = ok && anyFits;
+    g.node.hidden = !ok;
+    if (ok) shown++;
+  });
+  TIERS.forEach((t, i) => {
+    t.node.hidden = !GEMS.some(g => g.t === i && !g.node.hidden);
+  });
+  document.querySelector('.empty').hidden = shown > 0;
+  document.getElementById('count').textContent = `${shown} of ${GEMS.length} shown`;
+}
+
+buildGems();
+buildCombos();
+chipRow('tier-chips', [{ id: 'all', label: 'All' }, ...TIERS.map((t, i) => ({ id: String(i), label: t.name }))], 'tier');
+chipRow('gear-chips', GEAR, 'gear');
+document.getElementById('q').addEventListener('input', e => { state.q = e.target.value; apply(); });
+syncChips();
+apply();
+</script>
+
+</body>
+</html>

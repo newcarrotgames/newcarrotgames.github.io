@@ -6,7 +6,22 @@ Personal GitHub Pages site (user site, served from `main` at the repo root). Pus
 
 - `galaxy-rotation/index.html` — Galaxy Rotation Lab, served at https://newcarrotgames.github.io/galaxy-rotation/.
   One self-contained page: three.js r128 from cdnjs, Google Fonts, everything else inline.
+- `socket-gems/index.html` — Dregora Socket Gems, a player guide to the Socketed gems on the Dregora Parasited
+  Minecraft server, served at https://newcarrotgames.github.io/socket-gems/. Google Fonts, everything else inline.
 - No build system and no landing page at the root (the bare domain 404s).
+
+## Dregora Socket Gems: source and publishing
+
+The working source is `D:\dregora\nightmare\player_guides\socket_gems.html` (Windows machine), an HTML fragment.
+`socket-gems/index.html` wraps it like the Galaxy page, plus a small reset the fragment relies on
+(`[hidden]{display:none!important}` is required, or the gem filters stop hiding cards):
+
+```bash
+{ printf '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<style>body{margin:0}img{max-width:100%%}[hidden]{display:none!important}</style>\n</head>\n<body>\n'; cat /d/dregora/nightmare/player_guides/socket_gems.html; printf '\n</body>\n</html>\n'; } > socket-gems/index.html
+```
+
+The gem data is hand-written from the pack's `config/socketed/gemtypes/*.json` and `gemcombinations/*.json`
+(Oct 21 2026 #2 release). Re-check it against those files after a pack update.
 
 ## Galaxy Rotation Lab: source and publishing
 
